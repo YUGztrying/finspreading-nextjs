@@ -1,0 +1,160 @@
+// src/app/(dashboard)/dashboard/page.tsx
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Loader2, LogOut, FileSpreadsheet, Building2 } from 'lucide-react'
+
+export default function DashboardPage() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
+
+  useEffect(() => {
+    const getUser = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      setLoading(false)
+    }
+    getUser()
+  }, [])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-stone-50">
+      {/* Header */}
+      <header className="border-b border-stone-200 bg-white">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <Building2 className="w-6 h-6 text-amber-600" />
+            <h1 className="text-xl font-light text-stone-900">FinSpreading</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-stone-600">{user?.email}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="border-stone-200"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Déconnexion
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <div className="mb-8">
+          <h2 className="text-3xl font-light text-stone-900 mb-2">
+            Tableau de bord
+          </h2>
+          <p className="text-stone-600">
+            Bienvenue sur FinSpreading - Analyse d'états financiers pour IFC
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="border-stone-200 hover:shadow-md transition-shadow cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
+                <FileSpreadsheet className="w-5 h-5 text-amber-600" />
+                Télécharger Documents
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-stone-600 mb-4">
+                Importez vos états financiers PDF ou Excel
+              </p>
+              <Button
+                className="w-full bg-amber-600 hover:bg-amber-700"
+                onClick={() => router.push('/upload')}
+              >
+                Accéder
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-stone-200 opacity-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
+                <FileSpreadsheet className="w-5 h-5 text-stone-400" />
+                États Financiers
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-stone-600 mb-4">
+                Visualisez et modifiez vos données
+              </p>
+              <Button variant="outline" className="w-full" disabled>
+                Bientôt disponible
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-stone-200 opacity-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
+                <FileSpreadsheet className="w-5 h-5 text-stone-400" />
+                Rapports IRP
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-stone-600 mb-4">
+                Générez vos rapports standardisés IRP
+              </p>
+              <Button variant="outline" className="w-full" disabled>
+                Bientôt disponible
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Test API */}
+        <Card className="mt-8 border-stone-200 bg-emerald-50 border-emerald-200">
+          <CardHeader>
+            <CardTitle className="text-lg font-medium text-emerald-900">
+              ✅ Connexion établie
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-emerald-800">
+              Votre configuration Supabase fonctionne correctement. Vous êtes connecté en tant que <strong>{user?.email}</strong>
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4 border-emerald-300"
+              onClick={async () => {
+                const response = await fetch('/api/test')
+                const data = await response.json()
+                alert(JSON.stringify(data, null, 2))
+              }}
+            >
+              Tester l'API
+            </Button>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  )
+}
