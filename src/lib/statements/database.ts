@@ -31,7 +31,7 @@ export async function saveFinancialStatement(
     const { cleanedRows } = validateFinancialRows(data.line_items)
 
     // Step 2: Check if statement already exists
-    const { data: existingStatementsRaw, error: fetchError } = await supabase
+    const { data: existingStatements, error: fetchError } = await supabase
       .from('financial_statements')
       .select('*')
       .eq('user_id', userId)
@@ -43,8 +43,7 @@ export async function saveFinancialStatement(
       throw new Error(`Database query failed: ${fetchError.message}`)
     }
 
-    const existingStatements = Array.isArray(existingStatementsRaw) ? existingStatementsRaw : []
-    const existingStatement = existingStatements.length > 0 ? existingStatements[0] : null
+    const existingStatement = existingStatements?.[0]
 
     if (existingStatement) {
       // Statement exists - MERGE the data
@@ -52,8 +51,8 @@ export async function saveFinancialStatement(
       
       const mergedData = mergeStatements(
         {
-          periods: existingStatement.periods || [],
-          line_items: (existingStatement.line_items as LineItem[]) || []
+          periods: existingStatement.periods,
+          line_items: existingStatement.line_items as LineItem[]
         },
         {
           periods: data.periods,
@@ -63,17 +62,13 @@ export async function saveFinancialStatement(
         data.statement_type
       )
 
-      const existingSourceFiles = Array.isArray(existingStatement.source_files)
-        ? existingStatement.source_files
-        : []
-
       // Update existing statement
       const { data: updatedStatement, error: updateError } = await supabase
         .from('financial_statements')
         .update({
           periods: mergedData.periods,
           line_items: mergedData.line_items,
-          source_files: [...existingSourceFiles, data.source_file],
+          source_files: [...existingStatement.source_files, data.source_file],
           updated_at: new Date().toISOString()
         })
         .eq('id', existingStatement.id)
@@ -85,7 +80,7 @@ export async function saveFinancialStatement(
       }
 
       console.log('✅ Statement merged successfully')
-      return { success: true, statement_id: (updatedStatement as any)?.id }
+      return { success: true, statement_id: updatedStatement.id }
 
     } else {
       // No existing statement - CREATE new one
@@ -112,12 +107,12 @@ export async function saveFinancialStatement(
       }
 
       console.log('✅ Statement created successfully')
-      return { success: true, statement_id: (createdStatement as any)?.id }
+      return { success: true, statement_id: createdStatement.id }
     }
 
   } catch (error: any) {
     console.error('❌ Save statement error:', error)
-    return { success: false, error: error?.message ?? String(error) }
+    return { success: false, error: error.message }
   }
 }
 
@@ -133,8 +128,15 @@ function mergeStatements(
 ): { periods: string[]; line_items: LineItem[] } {
   
   // Step 1: Merge periods (union, sorted)
+  // Periods should be simple date strings like "2024-12-31"
   const allPeriods = [...new Set([...existing.periods, ...incoming.periods])]
-    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+    .sort((a, b) => {
+      try {
+        return new Date(a).getTime() - new Date(b).getTime()
+      } catch {
+        return 0
+      }
+    })
 
   console.log('📅 Merged periods:', allPeriods)
 
@@ -285,7 +287,7 @@ export async function getCompanyStatements(
     throw new Error(`Failed to fetch statements: ${error.message}`)
   }
 
-  return data ?? []
+  return data
 }
 
 /**
@@ -304,5 +306,5 @@ export async function getUserCompanies(userId: string) {
     throw new Error(`Failed to fetch companies: ${error.message}`)
   }
 
-  return data ?? []
+  return data
 }
