@@ -18,6 +18,7 @@ import { ArrowLeft, Building2, Loader2, AlertCircle, CheckCircle } from 'lucide-
 import StatementTable from '@/components/statements/StatementTable'
 import { LineItem } from '@/types/database.types'
 import RenameCompanyDialog from '@/components/RenameCompanyDialog'
+import ExportButton from '@/components/ExportButton'
 
 interface FinancialStatement {
   id: string
@@ -260,13 +261,20 @@ export default function ActifsPage() {
               </div>
             </div>
 
+            {/* Action Buttons */}
             {selectedCompany && userId && (
-              <RenameCompanyDialog
-                currentName={selectedCompany}
-                statementType="actifs"
-                userId={userId}
-                onSuccess={handleRenameSuccess}
-              />
+              <div className="flex items-center gap-2">
+                <ExportButton
+                  companyName={selectedCompany}
+                  userId={userId}
+                />
+                <RenameCompanyDialog
+                  currentName={selectedCompany}
+                  statementType="actifs"
+                  userId={userId}
+                  onSuccess={handleRenameSuccess}
+                />
+              </div>
             )}
           </div>
 

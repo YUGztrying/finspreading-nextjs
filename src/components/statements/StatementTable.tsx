@@ -12,20 +12,26 @@ interface StatementTableProps {
   lineItems: LineItem[]
   onSave: (lineItems: LineItem[]) => void
   readOnly?: boolean
+  // optional: pass the statement type so we can adapt layout for compte_resultats
+  statementType?: 'actifs' | 'passifs' | 'hors_bilan' | 'compte_resultats' | string
 }
 
 export default function StatementTable({
   periods,
   lineItems: initialLineItems,
   onSave,
-  readOnly = false
+  readOnly = false,
+  statementType
 }: StatementTableProps) {
   const [lineItems, setLineItems] = useState<LineItem[]>(initialLineItems)
   const [hasChanges, setHasChanges] = useState(false)
 
+  const isIncomeStatement = statementType === 'compte_resultats'
+
   const updateAmount = (lineIndex: number, periodIndex: number, value: string) => {
     const newLineItems = [...lineItems]
     const numValue = parseFloat(value) || 0
+    if (!newLineItems[lineIndex].amounts) newLineItems[lineIndex].amounts = periods.map(() => 0)
     newLineItems[lineIndex].amounts[periodIndex] = numValue
     setLineItems(newLineItems)
     setHasChanges(true)
@@ -80,7 +86,7 @@ export default function StatementTable({
 
   const formatPeriod = (period: string) => {
     const date = new Date(period)
-    return date.getFullYear().toString()
+    return isNaN(date.getTime()) ? period : date.getFullYear().toString()
   }
 
   return (
@@ -101,19 +107,26 @@ export default function StatementTable({
       {/* Table */}
       <div className="border border-stone-200 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          {/* Use table-auto so columns can grow to fit content, keep horizontal scroll if needed */}
+          <table className="w-full table-auto">
             <thead className="bg-stone-100 border-b border-stone-200">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-stone-700 w-32">
+                <th className="px-4 py-3 text-left text-sm font-medium text-stone-700 w-44">
                   Code Poste
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-stone-700 min-w-[300px]">
+                {/* Make description flexible and large so full text is visible */}
+                <th className="px-4 py-3 text-left text-sm font-medium text-stone-700 w-full min-w-[360px] lg:min-w-[520px]">
                   Description
                 </th>
                 {periods.map((period, idx) => (
                   <th
                     key={idx}
-                    className="px-4 py-3 text-right text-sm font-medium text-stone-700 w-40"
+                    className={
+                      `px-4 py-3 text-right text-sm font-medium text-stone-700 ` +
+                      (isIncomeStatement
+                        ? 'min-w-[180px] md:min-w-[220px] lg:min-w-[260px]'
+                        : 'min-w-[140px] md:min-w-[160px] lg:min-w-[200px]')
+                    }
                   >
                     {formatPeriod(period)}
                   </th>
@@ -137,46 +150,57 @@ export default function StatementTable({
                     paddingLeft: `${line.indent_level * 1}rem`
                   }}
                 >
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2 align-top">
                     {readOnly ? (
-                      <span className="text-sm text-stone-900">{line.poste}</span>
+                      <span className="text-sm text-stone-900 font-mono">{line.poste}</span>
                     ) : (
                       <Input
                         value={line.poste}
                         onChange={(e) => updatePoste(lineIdx, e.target.value)}
-                        className="text-sm h-8 border-stone-200"
+                        className="text-sm h-8 border-stone-200 font-mono min-w-[120px]"
                       />
                     )}
                   </td>
-                  <td className="px-4 py-2">
+                  <td className="px-4 py-2 align-top">
                     {readOnly ? (
-                      <span className="text-sm text-stone-900">{line.description}</span>
+                      <span className="text-sm text-stone-900 block whitespace-normal">{line.description}</span>
                     ) : (
                       <Input
                         value={line.description}
                         onChange={(e) => updateDescription(lineIdx, e.target.value)}
-                        className="text-sm h-8 border-stone-200"
+                        className="text-sm h-8 border-stone-200 w-full min-w-[360px] lg:min-w-[520px]"
                       />
                     )}
                   </td>
-                  {line.amounts.map((amount, periodIdx) => (
-                    <td key={periodIdx} className="px-4 py-2 text-right">
-                      {readOnly ? (
-                        <span className="text-sm text-stone-900 font-mono">
-                          {formatAmount(amount)}
-                        </span>
-                      ) : (
-                        <Input
-                          type="number"
-                          value={amount}
-                          onChange={(e) => updateAmount(lineIdx, periodIdx, e.target.value)}
-                          className="text-sm h-8 text-right border-stone-200 font-mono"
-                        />
-                      )}
-                    </td>
-                  ))}
+
+                  {/* Render amount cells aligned to periods (ensures column count matches header) */}
+                  {periods.map((_, periodIdx) => {
+                    const amount = line.amounts?.[periodIdx] ?? 0
+                    return (
+                      <td key={periodIdx} className="px-4 py-2 text-right align-top">
+                        {readOnly ? (
+                          <span className="text-sm text-stone-900 font-mono tabular-nums">
+                            {formatAmount(amount)}
+                          </span>
+                        ) : (
+                          <Input
+                            type="number"
+                            value={String(amount)}
+                            onChange={(e) => updateAmount(lineIdx, periodIdx, e.target.value)}
+                            className={
+                              `text-sm h-8 text-right border-stone-200 font-mono tabular-nums ` +
+                              (isIncomeStatement
+                                ? 'min-w-[180px] md:min-w-[220px] lg:min-w-[260px]'
+                                : 'min-w-[140px] md:min-w-[160px] lg:min-w-[200px]')
+                            }
+                          />
+                        )}
+                      </td>
+                    )
+                  })}
+
                   {!readOnly && (
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2 align-top">
                       <Button
                         variant="ghost"
                         size="sm"

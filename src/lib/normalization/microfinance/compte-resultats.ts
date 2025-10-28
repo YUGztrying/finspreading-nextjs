@@ -38,6 +38,8 @@ const MICROFINANCE_INCOME_STATEMENT_MAP: Record<string, string> = {
   MFC_R3N: "Intérêts sur emprunts et autres sommes dues",
   MFC_R3Q: "Autres intérêts",
   MFC_R3T: "Commissions",
+  MFC_Z21: "Marge d'intérêt bénéficiaire",
+  MFC_Z22: "Total charges d'intérêts",
   MFC_R4B: "Charges sur opérations sur titres et sur opérations diverses",
   MFC_R4C: "Charges et pertes sur titres de placement",
   MFC_R4K: "Charges sur opérations diverses",
@@ -79,6 +81,11 @@ const MICROFINANCE_INCOME_STATEMENT_MAP: Record<string, string> = {
   MFC_R7B: "Moins-values sur cessions d'éléments d'actifs",
   MFC_R7C: "Transferts de produits d'exploitation financière",
   MFC_R7D: "Diverses charges d'exploitation financière",
+  MFC_Z23: "Autres produits financiers nets",
+  MFC_Z24: "Autres charges financières nettes",
+  MFC_Z25: "Marge d'intérêt bénéficiaire",
+  MFC_Z26: "Produits financiers nets",
+  MFC_Z27: "Achats et variations de stocks",
   MFC_R8G: "Achats de marchandises",
   MFC_R8J: "Stocks vendus",
   MFC_R8L: "Variations de stocks de marchandises",
@@ -147,7 +154,7 @@ const MICROFINANCE_INCOME_STATEMENT_MAP: Record<string, string> = {
   MFC_T80: "Charges exceptionnelles",
   MFC_T81: "Pertes sur exercices antérieurs",
   MFC_T82: "Impôts sur les excédents",
-  MFC_L80: "Excédent",
+  MFC_L80A: "Excédent",
   MFC_T84: "Total charges",
   
   // PRODUITS (MFP_)
@@ -179,6 +186,8 @@ const MICROFINANCE_INCOME_STATEMENT_MAP: Record<string, string> = {
   MFP_V3R: "Autres intérêts",
   MFP_V3T: "Divers intérêts",
   MFP_V3X: "Commissions",
+  MFP_Z31: "Marge d'intérêts déficitaire",
+  MFP_Z32: "Total produits d'intérêts",
   MFP_V4B: "Produits sur opérations sur titres et sur opérations et diverses",
   MFP_V4C: "Produits et profits sur titres de placement",
   MFP_V4D: "Intérêts sur crédits accordés au personnel non membre",
@@ -222,6 +231,10 @@ const MICROFINANCE_INCOME_STATEMENT_MAP: Record<string, string> = {
   MFP_V7B: "Plus-values sur cession d'éléments d'actifs",
   MFP_V7C: "Transfert de charges d'exploitation financières",
   MFP_V7D: "Divers produits d'exploitation financière",
+  MFP_Z33: "Autres charges financières nettes",
+  MFP_Z34: "Autres produits financiers nets",
+  MFP_Z35: "Marge d'intérêt déficitaire",
+  MFP_Z36: "Charge financière nette",
   MFP_V8A: "Ventes et variation de stock",
   MFP_V8B: "Marge commerciale",
   MFP_V8C: "Vente de marchandises",
@@ -258,7 +271,7 @@ const MICROFINANCE_INCOME_STATEMENT_MAP: Record<string, string> = {
   MFP_X6I: "Reprises de provisions réglementées",
   MFP_X80: "Produits exceptionnels",
   MFP_X81: "Profits sur exercices antérieurs",
-  MFP_L80: "DEFICIT",
+  MFP_L80a: "DEFICIT",
   MFP_X84: "Total produits"
 }
 
