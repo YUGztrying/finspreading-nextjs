@@ -17,6 +17,7 @@ import {
 import { ArrowLeft, Building2, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
 import StatementTable from '@/components/statements/StatementTable'
 import { LineItem } from '@/types/database.types'
+import RenameCompanyDialog from '@/components/RenameCompanyDialog'
 
 interface FinancialStatement {
   id: string
@@ -57,7 +58,6 @@ export default function ActifsPage() {
       setUserId(user.id)
 
       try {
-        // Fetch all statements for this user
         const response = await fetch(
           `/api/statements/list?user_id=${user.id}&statement_type=actifs`
         )
@@ -133,6 +133,59 @@ export default function ActifsPage() {
     fetchStatement()
   }, [selectedCompany, userId])
 
+  // Refresh data after rename
+  const handleRenameSuccess = async () => {
+    console.log('🔄 Starting refresh after rename...')
+    
+    setNotification({
+      type: 'success',
+      message: '✅ Entreprise renommée avec succès'
+    })
+
+    setLoading(true)
+
+    // Refresh companies list
+    try {
+      console.log('📡 Fetching updated companies list...')
+      const response = await fetch(
+        `/api/statements/list?user_id=${userId}&statement_type=actifs`
+      )
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('📊 Fetched companies:', result.companies)
+        
+        if (result.companies && result.companies.length > 0) {
+          setCompanies(result.companies)
+          const firstCompany = result.companies[0]
+          console.log('✅ Setting selected company to:', firstCompany)
+          setSelectedCompany(firstCompany)
+          
+          // Fetch statement for new company name
+          console.log('📡 Fetching statement for:', firstCompany)
+          const statementResponse = await fetch(
+            `/api/statements/list?user_id=${userId}&company_name=${encodeURIComponent(firstCompany)}&statement_type=actifs`
+          )
+          
+          if (statementResponse.ok) {
+            const statementResult = await statementResponse.json()
+            console.log('📄 Fetched statement:', statementResult.statements?.[0]?.company_name)
+            
+            if (statementResult.statements && statementResult.statements.length > 0) {
+              setStatement(statementResult.statements[0])
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing companies:', error)
+    } finally {
+      setLoading(false)
+    }
+
+    setTimeout(() => setNotification(null), 3000)
+  }
+
   // Save changes
   const handleSave = async (updatedLineItems: LineItem[]) => {
     if (!statement) return
@@ -160,13 +213,11 @@ export default function ActifsPage() {
         message: '✅ Modifications enregistrées avec succès'
       })
 
-      // Update local state
       setStatement({
         ...statement,
         line_items: updatedLineItems
       })
 
-      // Clear notification after 3 seconds
       setTimeout(() => setNotification(null), 3000)
 
     } catch (error: any) {
@@ -190,52 +241,68 @@ export default function ActifsPage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Header */}
       <header className="border-b border-stone-200 bg-white sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => router.push('/dashboard')}
-              className="border-stone-200"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-light text-stone-900">
-                État des Actifs
-              </h1>
-              <p className="text-sm text-stone-600">
-                Visualisez et modifiez les postes d'actifs
-              </p>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => router.push('/dashboard')}
+                className="border-stone-200"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-light text-stone-900">
+                  État des Actifs
+                </h1>
+              </div>
             </div>
+
+            {selectedCompany && userId && (
+              <RenameCompanyDialog
+                currentName={selectedCompany}
+                statementType="actifs"
+                userId={userId}
+                onSuccess={handleRenameSuccess}
+              />
+            )}
           </div>
 
-          {/* Company Selector */}
           {companies.length > 0 && (
-            <div className="flex items-center gap-3">
-              <Building2 className="w-5 h-5 text-stone-600" />
-              <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                <SelectTrigger className="w-[300px] border-stone-200">
-                  <SelectValue placeholder="Sélectionner une société" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company} value={company}>
-                      {company}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Building2 className="w-5 h-5 text-stone-600" />
+                <span className="text-lg font-medium text-stone-900">
+                  {selectedCompany}
+                </span>
+              </div>
+              
+              {companies.length > 1 && (
+                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                  <SelectTrigger className="w-[300px] border-stone-200">
+                    <SelectValue placeholder="Sélectionner une société" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company} value={company}>
+                        {company}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           )}
+          
+          <p className="text-sm text-stone-600 mt-2">
+            Visualisez et modifiez les postes d'actifs
+          </p>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-        {/* Notification */}
         {notification && (
           <Alert
             variant={notification.type === 'error' ? 'destructive' : 'default'}
@@ -266,7 +333,6 @@ export default function ActifsPage() {
           </Alert>
         )}
 
-        {/* Statement Info Card */}
         {statement && (
           <Card className="border-stone-200 bg-white shadow-sm">
             <CardHeader className="border-b border-stone-100">
@@ -296,7 +362,6 @@ export default function ActifsPage() {
           </Card>
         )}
 
-        {/* Statement Table */}
         {statement ? (
           <Card className="border-stone-200 bg-white shadow-sm">
             <CardContent className="p-6">

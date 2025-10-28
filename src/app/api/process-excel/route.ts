@@ -1,11 +1,12 @@
 // src/app/api/process-excel/route.ts
 // API Route to process Excel files
-// Updated: Removed normalization (now done in save route automatically)
+// Updated: Added normalization before saving
 
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { saveFinancialStatement } from '@/lib/statements/database'
 import { LineItem } from '@/types/database.types'
+import { normalizeFinancialLines } from '@/lib/normalization/normalize'
 
 // --- CLEANING MODULE (ported from Base44) ---
 
@@ -412,7 +413,26 @@ export async function POST(request: NextRequest) {
               continue
             }
 
-            // Save to database (normalization will be applied automatically in save route)
+            // Normalize line items BEFORE saving
+            console.log(`🔄 Normalizing line items...`)
+            
+            const normalizeResult = normalizeFinancialLines(lineItems, {
+              institutionType: institution_type,
+              statementType: candidateType as any,
+              companyName: company_name || 'Unknown Company',
+              sourceFile: file_url
+            })
+            
+            const normalizedLineItems = normalizeResult.normalizedLines
+            
+            console.log(`✅ Normalized ${normalizedLineItems.length} line items`)
+            console.log(`🔍 Sample normalized codes:`, normalizedLineItems.slice(0, 3).map(i => i.poste))
+            
+            if (normalizeResult.unmappedLines.length > 0) {
+              console.log(`⚠️ Found ${normalizeResult.unmappedLines.length} unmapped lines`)
+            }
+
+            // Save to database
             console.log(`💾 Saving to database...`)
             const saveResult = await saveFinancialStatement(
               {
@@ -420,7 +440,7 @@ export async function POST(request: NextRequest) {
                 type_institution: institution_type,
                 statement_type: candidateType as any,
                 periods,
-                line_items: lineItems,
+                line_items: normalizedLineItems,
                 source_file: file_url
               },
               user_id
