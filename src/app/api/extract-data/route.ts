@@ -1,6 +1,6 @@
 // src/app/api/extract-data/route.ts
 // API Route to extract financial data from PDFs using Claude API
-// Ported from Base44 ExtractDataFromUploadedFile
+// Updated to handle multi-statement PDFs (actifs, passifs, compte_resultats, hors_bilan in one file)
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
@@ -35,32 +35,52 @@ export async function POST(request: NextRequest) {
 
     console.log('📦 PDF size:', (pdfBuffer.byteLength / 1024).toFixed(2), 'KB')
 
-    // Step 2: Create extraction prompt
+    // Step 2: Create extraction prompt for MULTIPLE statements
     const extractionPrompt = `Tu es un expert comptable spécialisé dans l'analyse d'états financiers ${institution_type === 'banque' ? 'bancaires' : 'de microfinance'}.
 
-Analyse ce document PDF et extrais les données financières structurées.
+Analyse ce document PDF qui peut contenir PLUSIEURS états financiers (actifs, passifs, hors_bilan, compte_resultats).
 
 INSTRUCTIONS CRITIQUES:
-1. Identifie le type d'état financier (actifs, passifs, hors_bilan, compte_resultats)
-2. Extrais TOUS les postes comptables avec leurs codes et montants
-3. Détecte les périodes (dates) dans les en-têtes de colonnes
-4. Pour chaque ligne, extrais: code poste, description, et montants pour chaque période
-5. Identifie les sous-totaux et totaux (is_subtotal, is_total)
-6. Préserve la structure hiérarchique (indent_level)
+1. Détecte TOUS les types d'états financiers présents dans le document
+2. Pour CHAQUE état financier trouvé, extrais séparément:
+   - Le type (actifs, passifs, hors_bilan, compte_resultats)
+   - TOUS les postes comptables avec leurs codes et montants
+   - Les périodes (dates) dans les en-têtes
+3. Pour chaque ligne, extrais: code poste, description, et montants pour chaque période
+4. Identifie les sous-totaux et totaux (is_subtotal, is_total)
+5. Préserve la structure hiérarchique (indent_level)
 
-FORMAT DE SORTIE (JSON strict):
+FORMAT DE SORTIE (JSON strict) - TABLEAU d'états financiers:
 {
   "company_name": "Nom de l'institution",
-  "statement_type": "actifs|passifs|hors_bilan|compte_resultats",
-  "periods": ["2024-12-31", "2023-12-31"],
-  "line_items": [
+  "statements": [
     {
-      "poste": "ACTIF_01",
-      "description": "Caisse, Banque Centrale",
-      "amounts": [1000000, 900000],
-      "is_subtotal": false,
-      "is_total": false,
-      "indent_level": 0
+      "statement_type": "actifs",
+      "periods": ["2024-12-31", "2023-12-31"],
+      "line_items": [
+        {
+          "poste": "RBA_0010",
+          "description": "Caisse, Banque Centrale, CCP",
+          "amounts": [1000000, 900000],
+          "is_subtotal": false,
+          "is_total": false,
+          "indent_level": 0
+        }
+      ]
+    },
+    {
+      "statement_type": "passifs",
+      "periods": ["2024-12-31", "2023-12-31"],
+      "line_items": [
+        {
+          "poste": "RBP_0010",
+          "description": "Banque Centrale, CCP",
+          "amounts": [500000, 400000],
+          "is_subtotal": false,
+          "is_total": false,
+          "indent_level": 0
+        }
+      ]
     }
   ]
 }
@@ -68,9 +88,13 @@ FORMAT DE SORTIE (JSON strict):
 RÈGLES:
 - Les montants doivent être des NOMBRES, pas des strings
 - Les périodes au format YYYY-MM-DD
+- Garde les CODES ORIGINAUX du document (RBA_0010, RBP_0010, RCR_0010, RHB_0010, etc.)
 - Ne pas inventer de données, extrais uniquement ce qui est visible
 - Si un montant n'est pas lisible, utilise 0
-- Les codes postes doivent suivre la nomenclature ${institution_type === 'banque' ? 'bancaire (ACTIF_01, PASSIF_01, etc.)' : 'microfinance (MFA_A10, MFP_G10, etc.)'}
+- Si le document contient UN SEUL état financier, retourne quand même un tableau avec un élément
+- Les types valides: "actifs", "passifs", "hors_bilan", "compte_resultats"
+
+IMPORTANT: Retourne TOUS les états financiers trouvés dans le PDF, pas seulement le premier!
 
 Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
 
@@ -79,7 +103,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
     
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [
         {
           role: 'user',
@@ -104,91 +128,63 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
     console.log('✅ Claude API response received')
     console.log('Usage:', message.usage)
 
-    // Step 4: Extract JSON from Claude's response
-    const responseText = message.content[0].type === 'text' 
-      ? message.content[0].text 
-      : ''
-
-    console.log('📝 Raw response length:', responseText.length)
-
-    // Try to find JSON in the response
-    let extractedData: any
-    
-    // Look for JSON block (might be wrapped in ```json ... ```)
-    const jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/) || 
-                     responseText.match(/```\n([\s\S]*?)\n```/) ||
-                     responseText.match(/\{[\s\S]*\}/)
-
-    if (jsonMatch) {
-      const jsonStr = jsonMatch[1] || jsonMatch[0]
-      try {
-        extractedData = JSON.parse(jsonStr)
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError)
-        throw new Error('Failed to parse JSON from Claude response')
-      }
-    } else {
-      throw new Error('No JSON found in Claude response')
+    // Step 4: Parse response
+    const textContent = message.content.find((block) => block.type === 'text')
+    if (!textContent || textContent.type !== 'text') {
+      throw new Error('No text content in Claude response')
     }
 
-    // Step 5: Validate extracted data
-    if (!extractedData.statement_type || !extractedData.line_items) {
-      throw new Error('Invalid data structure from Claude')
+    const rawResponse = textContent.text
+    console.log('📝 Raw response length:', rawResponse.length)
+
+    // Extract JSON from response (handle markdown code blocks)
+    let jsonStr = rawResponse.trim()
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     }
 
-    // Step 6: Clean and normalize the data
-    const cleanedData = {
-      company_name: extractedData.company_name || 'Unknown',
-      statement_type: extractedData.statement_type,
-      periods: extractedData.periods || [],
-      line_items: extractedData.line_items.map((item: any) => ({
-        poste: item.poste || '',
-        description: item.description || '',
-        amounts: Array.isArray(item.amounts) ? item.amounts.map(Number) : [],
-        is_subtotal: Boolean(item.is_subtotal),
-        is_total: Boolean(item.is_total),
-        indent_level: Number(item.indent_level) || 0,
-        manual: false,
-        flags: []
-      }))
+    let parsedData
+    try {
+      parsedData = JSON.parse(jsonStr)
+    } catch (parseError) {
+      console.error('Failed to parse JSON:', jsonStr.substring(0, 500))
+      throw new Error('Invalid JSON response from Claude API')
     }
 
+    // Validate structure
+    if (!parsedData.company_name || !parsedData.statements || !Array.isArray(parsedData.statements)) {
+      throw new Error('Invalid response structure - missing company_name or statements array')
+    }
+
+    // Log extraction results
     console.log('🎯 Extraction complete:')
-    console.log('  - Company:', cleanedData.company_name)
-    console.log('  - Type:', cleanedData.statement_type)
-    console.log('  - Periods:', cleanedData.periods.length)
-    console.log('  - Line items:', cleanedData.line_items.length)
+    console.log(`  - Company: ${parsedData.company_name}`)
+    console.log(`  - Statements found: ${parsedData.statements.length}`)
+    
+    for (const statement of parsedData.statements) {
+      console.log(`  - ${statement.statement_type}: ${statement.line_items?.length || 0} lines, ${statement.periods?.length || 0} periods`)
+    }
 
     return NextResponse.json({
       success: true,
-      data: cleanedData,
+      data: parsedData,
       summary: {
-        company_name: cleanedData.company_name,
-        statement_type: cleanedData.statement_type,
-        periods_count: cleanedData.periods.length,
-        line_items_count: cleanedData.line_items.length,
-        tokens_used: message.usage.input_tokens + message.usage.output_tokens
+        company: parsedData.company_name,
+        total_statements: parsedData.statements.length,
+        statements: parsedData.statements.map((s: any) => ({
+          type: s.statement_type,
+          lines: s.line_items?.length || 0,
+          periods: s.periods?.length || 0
+        }))
       }
     })
 
   } catch (error: any) {
-    console.error('❌ PDF extraction error:', error)
-    
-    // Handle specific errors
-    if (error.message?.includes('API key')) {
-      return NextResponse.json(
-        {
-          error: 'Configuration error',
-          details: 'Anthropic API key is not configured. Please add ANTHROPIC_API_KEY to .env.local'
-        },
-        { status: 500 }
-      )
-    }
-
+    console.error('❌ Extraction error:', error)
     return NextResponse.json(
       {
-        error: error.message || 'PDF extraction failed',
-        details: 'An error occurred while processing the PDF with AI. The file might be corrupted or not readable.'
+        error: error.message || 'Failed to extract data',
+        details: 'An error occurred during PDF extraction'
       },
       { status: 500 }
     )

@@ -1,9 +1,11 @@
 // src/app/api/statements/save/route.ts
 // API endpoint to save processed financial statement data
+// Updated to apply normalization automatically before saving
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { saveFinancialStatement, ProcessedData } from '@/lib/statements/database'
+import { normalizeFinancialLines } from '@/lib/normalization/normalize'
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,8 +37,28 @@ export async function POST(request: NextRequest) {
       lines: statementData.line_items?.length || 0
     })
 
+    // Apply normalization before saving
+    console.log('🔧 Applying normalization...')
+    const normalizeResult = normalizeFinancialLines(
+      statementData.line_items || [],
+      {
+        institutionType: statementData.type_institution || 'banque',
+        statementType: statementData.statement_type,
+        companyName: statementData.company_name,
+        sourceFile: statementData.source_file
+      }
+    )
+
+    console.log('📊 Normalization stats:', normalizeResult.stats)
+
+    // Update statement data with normalized line items
+    const normalizedStatementData: ProcessedData = {
+      ...statementData,
+      line_items: normalizeResult.normalizedLines
+    }
+
     // Save to database
-    const result = await saveFinancialStatement(statementData, user_id)
+    const result = await saveFinancialStatement(normalizedStatementData, user_id)
 
     if (!result.success) {
       throw new Error(result.error || 'Failed to save statement')
@@ -47,7 +69,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       statement_id: result.statement_id,
-      message: 'Statement saved successfully'
+      normalization_stats: normalizeResult.stats,
+      unmapped_lines: normalizeResult.unmappedLines.length,
+      message: 'Statement saved successfully with normalization'
     })
 
   } catch (error: any) {

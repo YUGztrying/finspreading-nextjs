@@ -132,6 +132,7 @@ export default function UploadPage() {
       }
 
       // Step 4: Call processing API
+      // Step 4: Call processing API
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
@@ -140,8 +141,12 @@ export default function UploadPage() {
         body: JSON.stringify({
           file_url: fileUrl,
           institution_type: institutionType,
+          user_id: user?.id,  // ADD THIS
+          company_name: file.name.replace(/\.(xlsx|xls|pdf)$/i, '').replace(/[_-]/g, ' ')  // ADD THIS
         }),
       })
+
+      clearInterval(progressInterval)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -153,41 +158,67 @@ export default function UploadPage() {
       // Step 5: Save to database
       console.log('💾 Saving to database...')
 
-      let processedData: any = null
+      // Updated section for PDF processing in upload page
+// Replace lines 162-217 in src/app/(dashboard)/upload/page.tsx
+
+      let processedData: any
       
       if (apiEndpoint === '/api/process-excel') {
-        // For Excel: Convert cleaned tables to statement format
-        // TODO: This needs normalization logic applied
-        console.log('📊 Excel data ready for normalization')
+        // Excel processing - already handles multiple statements
+        console.log('📊 Excel processing complete')
+        
+        // Excel route already saves to database, so we're done
+        const savedCount = result.saved_statements?.length || 0
+        console.log(`✅ ${savedCount} statement(s) saved from Excel`)
+        
       } else {
-        // For PDF: Data is already in correct format
-        processedData = {
-          company_name: result.data?.company_name,
-          type_institution: institutionType,
-          statement_type: result.data?.statement_type,
-          periods: result.data?.periods,
-          line_items: result.data?.line_items,
-          source_file: storedFileName
+        // PDF processing - now handles MULTIPLE statements
+        const statements = result.data.statements || []
+        const companyName = result.data.company_name
+        
+        console.log(`📄 Processing ${statements.length} statement(s) from PDF...`)
+        
+        let savedCount = 0
+        const savedIds: string[] = []
+        
+        // Process each statement separately
+        for (const statement of statements) {
+          const statementData = {
+            company_name: companyName,
+            type_institution: institutionType,
+            statement_type: statement.statement_type,
+            periods: statement.periods,
+            line_items: statement.line_items,
+            source_file: __filename
+          }
+          
+          try {
+            // Save to database
+            const saveResponse = await fetch('/api/statements/save', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ 
+                data: statementData,
+                user_id: user?.id 
+              }),
+            })
+            
+            if (saveResponse.ok) {
+              const saveResult = await saveResponse.json()
+              console.log(`✅ Saved ${statement.statement_type}:`, saveResult.statement_id)
+              savedIds.push(saveResult.statement_id)
+              savedCount++
+            } else {
+              console.warn(`⚠️ Failed to save ${statement.statement_type}`)
+            }
+          } catch (saveError) {
+            console.error(`❌ Error saving ${statement.statement_type}:`, saveError)
+          }
         }
         
-        // Save PDF data to database
-        const saveResponse = await fetch('/api/statements/save', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            data: processedData,
-            user_id: user.id 
-          }),
-        })
-        
-        if (!saveResponse.ok) {
-          console.warn('⚠️ Failed to save to database, but file was processed')
-        } else {
-          const saveResult = await saveResponse.json().catch(() => ({}))
-          console.log('✅ Saved to database:', saveResult.statement_id)
-        }
+        console.log(`💾 Saved ${savedCount}/${statements.length} statements to database`)
       }
 
       // Complete progress
@@ -200,12 +231,15 @@ export default function UploadPage() {
       // Different success messages for Excel vs PDF
       let successMessage = ''
       if (apiEndpoint === '/api/process-excel') {
-        successMessage = `✅ Excel traité! ${result.summary?.totalTables || 0} tableau(x) détecté(s).`
+        const savedCount = result.saved_statements?.length || 0
+        const totalTables = result.summary?.totalTables || 0
+        successMessage = `✅ Excel traité! ${totalTables} tableau(x) détecté(s), ${savedCount} sauvegardé(s).`
       } else {
-        // PDF extraction
-        const lineItemsCount = result.data?.line_items?.length || 0
-        const company = result.data?.company_name || 'Unknown'
-        successMessage = `✅ PDF traité et sauvegardé! ${lineItemsCount} ligne(s) pour ${company}`
+        // PDF extraction - multi-statement support
+        const statements = result.data.statements || []
+        const company = result.data.company_name || 'Unknown'
+        const types = statements.map((s: any) => s.statement_type).join(', ')
+        successMessage = `✅ PDF traité! ${statements.length} état(s) financier(s) pour ${company}: ${types}`
       }
 
       setNotification({

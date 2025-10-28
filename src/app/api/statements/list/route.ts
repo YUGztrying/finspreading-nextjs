@@ -1,0 +1,67 @@
+// src/app/api/statements/list/route.ts
+// API endpoint to list all statements for authenticated user
+
+import { NextRequest, NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/supabase/server'
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('user_id')
+    const companyName = searchParams.get('company_name')
+    const statementType = searchParams.get('statement_type')
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'user_id is required' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createServiceClient()
+
+    // Build query
+    let query = supabase
+      .from('financial_statements')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+
+    // Apply filters if provided
+    if (companyName) {
+      query = query.eq('company_name', companyName)
+    }
+
+    if (statementType) {
+      query = query.eq('statement_type', statementType)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      throw new Error(`Failed to fetch statements: ${error.message}`)
+    }
+
+    // Group by company for easy selection
+    const companies = [...new Set(data.map(s => s.company_name))]
+
+    console.log(`📊 Found ${data.length} statements for ${companies.length} companies`)
+
+    return NextResponse.json({
+      success: true,
+      statements: data,
+      companies,
+      count: data.length
+    })
+
+  } catch (error: any) {
+    console.error('❌ List statements error:', error)
+    return NextResponse.json(
+      {
+        error: error.message || 'Failed to fetch statements',
+        details: 'An error occurred while fetching financial statements'
+      },
+      { status: 500 }
+    )
+  }
+}

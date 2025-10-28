@@ -74,7 +74,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="border-stone-200 hover:shadow-md transition-shadow cursor-pointer">
+          {/* Upload Card */}
+          <Card className="border-stone-200 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => router.push('/upload')}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
                 <FileSpreadsheet className="w-5 h-5 text-amber-600" />
@@ -85,32 +87,89 @@ export default function DashboardPage() {
               <p className="text-sm text-stone-600 mb-4">
                 Importez vos états financiers PDF ou Excel
               </p>
-              <Button
-                className="w-full bg-amber-600 hover:bg-amber-700"
-                onClick={() => router.push('/upload')}
-              >
+              <Button className="w-full bg-amber-600 hover:bg-amber-700">
                 Accéder
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="border-stone-200 opacity-50">
+          {/* Actifs Card */}
+          <Card className="border-stone-200 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => router.push('/actifs')}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
-                <FileSpreadsheet className="w-5 h-5 text-stone-400" />
-                États Financiers
+                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                État des Actifs
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-stone-600 mb-4">
-                Visualisez et modifiez vos données
+                Visualisez et modifiez vos actifs
               </p>
-              <Button variant="outline" className="w-full" disabled>
-                Bientôt disponible
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700">
+                Accéder
               </Button>
             </CardContent>
           </Card>
 
+          {/* Passifs Card */}
+          <Card className="border-stone-200 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => router.push('/passifs')}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
+                <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+                État des Passifs
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-stone-600 mb-4">
+                Visualisez et modifiez vos passifs
+              </p>
+              <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                Accéder
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Compte de Résultats Card */}
+          <Card className="border-stone-200 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => router.push('/compte-resultats')}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
+                <FileSpreadsheet className="w-5 h-5 text-purple-600" />
+                Compte de Résultats
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-stone-600 mb-4">
+                Visualisez produits et charges
+              </p>
+              <Button className="w-full bg-purple-600 hover:bg-purple-700">
+                Accéder
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Hors-Bilan Card */}
+          <Card className="border-stone-200 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => router.push('/hors-bilan')}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
+                <FileSpreadsheet className="w-5 h-5 text-orange-600" />
+                Hors-Bilan
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-stone-600 mb-4">
+                Visualisez les engagements
+              </p>
+              <Button className="w-full bg-orange-600 hover:bg-orange-700">
+                Accéder
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* IRP Reports Card */}
           <Card className="border-stone-200 opacity-50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
@@ -120,7 +179,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-stone-600 mb-4">
-                Générez vos rapports standardisés IRP
+                Générez vos rapports standardisés
               </p>
               <Button variant="outline" className="w-full" disabled>
                 Bientôt disponible
