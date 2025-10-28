@@ -1,7 +1,7 @@
 // src/components/irp/IRPBalanceSheet.tsx
 'use client'
 
-import { forwardRef, useImperativeHandle, useState, useMemo } from 'react'
+import { forwardRef, useImperativeHandle, useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,8 @@ import { format } from 'date-fns'
 import {
   assetsStructureMicrofinance,
   liabilitiesStructureMicrofinance,
+  assetsStructureBank,
+  liabilitiesStructureBank,
   IRPLineItem
 } from '@/lib/irp/structures'
 import { calculateAllLines } from '@/lib/irp/calculator'
@@ -41,12 +43,10 @@ const parseNumber = (str: string) => {
 const IRPBalanceSheet = forwardRef(({ data }: IRPBalanceSheetProps, ref) => {
   const [editedValues, setEditedValues] = useState<Record<string, number>>({})
   
-  const isBank = data.type_institution === 'bank'
-  
-  // For now, we only have microfinance structures
-  // TODO: Add bank structures
-  const assetsStructure = assetsStructureMicrofinance
-  const liabilitiesStructure = liabilitiesStructureMicrofinance
+  const isBank = data.type_institution === 'banque'
+
+  const assetsStructure = isBank ? assetsStructureBank : assetsStructureMicrofinance
+  const liabilitiesStructure = isBank ? liabilitiesStructureBank : liabilitiesStructureMicrofinance
 
   // Calculate all values
   const calculatedAssets = useMemo(() => {
@@ -58,6 +58,11 @@ const IRPBalanceSheet = forwardRef(({ data }: IRPBalanceSheetProps, ref) => {
     const sourceLineItems = data.passifs?.line_items || []
     return calculateAllLines(liabilitiesStructure, sourceLineItems, data.periods.length)
   }, [data.passifs, data.periods, liabilitiesStructure])
+
+  // Reset edited values when data changes
+  useEffect(() => {
+    setEditedValues({})
+  }, [data.company_name, data.type_institution])
 
   // Apply edits
   const getFinalValue = (rowTitle: string, periodIndex: number, calculatedValue: number) => {
@@ -188,7 +193,7 @@ const IRPBalanceSheet = forwardRef(({ data }: IRPBalanceSheetProps, ref) => {
       <CardHeader className="border-b border-stone-100">
         <CardTitle className="flex items-center gap-3 text-xl font-medium text-stone-900">
           <TrendingUp className="w-6 h-6 text-emerald-600" />
-          Balance Sheet - Complete IRP Format
+          Balance Sheet - Complete IRP Format ({isBank ? 'BANQUE' : 'MICROFINANCE'})
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">

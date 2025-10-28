@@ -1,7 +1,7 @@
 // src/components/irp/IRPIncomeStatement.tsx
 'use client'
 
-import { forwardRef, useImperativeHandle, useState, useMemo } from 'react'
+import { forwardRef, useImperativeHandle, useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
@@ -40,7 +40,7 @@ const parseNumber = (str: string) => {
 const IRPIncomeStatement = forwardRef(({ data }: IRPIncomeStatementProps, ref) => {
   const [editedValues, setEditedValues] = useState<Record<string, number>>({})
   
-  const isBank = data.type_institution === 'bank'
+  const isBank = data.type_institution === 'banque'
   
   // Select appropriate structure
   const incomeStructure = isBank ? incomeStatementStructureBank : incomeStatementStructureMicrofinance
@@ -50,6 +50,11 @@ const IRPIncomeStatement = forwardRef(({ data }: IRPIncomeStatementProps, ref) =
     const sourceLineItems = data.compte_resultats?.line_items || []
     return calculateAllLines(incomeStructure, sourceLineItems, data.periods.length)
   }, [data.compte_resultats, data.periods, incomeStructure])
+
+  // Reset edited values when data changes
+  useEffect(() => {
+    setEditedValues({})
+  }, [data.company_name, data.type_institution])
 
   // Apply edits
   const getFinalValue = (rowTitle: string, periodIndex: number, calculatedValue: number) => {

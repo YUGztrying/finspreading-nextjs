@@ -242,16 +242,326 @@ export const incomeStatementStructureMicrofinance: IRPLineItem[] = [
   { title: 'TCI Attributable to Parent Shareholders', isCalculated: true, components: [{name: 'Total Comprehensive Income', sign: '+'}, {name: 'TCI Attributable to Non Controlling Interests', sign: '-' }], type: 'finalTotal' }
 ];
 
+
+export const assetsStructureBank: IRPLineItem[] = [
+  { title: 'ASSETS', type: 'header' },
+  { title: 'EARNING ASSETS', type: 'header' },
+  { title: 'Loan Portfolio', type: 'subheader' },
+  { title: 'Corporate & Commercial Loans and Leases', keywords: [] },
+  { title: 'Retail Loans and Leases (incl. Residential Mortgage)', keywords: [] },
+  { title: 'Loans and Leases to Banks', keywords: [] },
+  { title: 'Loans and Leases to Governments', keywords: [] },
+  { title: 'Other Loans and Leases', keywords: ['ACTIF_04'] },
+  { title: 'Gross Loans', isCalculated: true, components: [
+    { name: 'Corporate & Commercial Loans and Leases', sign: '+' },
+    { name: 'Retail Loans and Leases (incl. Residential Mortgage)', sign: '+' },
+    { name: 'Loans and Leases to Banks', sign: '+' },
+    { name: 'Loans and Leases to Governments', sign: '+' },
+    { name: 'Other Loans and Leases', sign: '+' }
+  ]},
+  { title: 'Less: Unearned Income (-)', keywords: [] },
+  { title: 'Less: Reserves for Impaired Loans (NPLs) (-)', keywords: [] },
+  { title: 'Net Loans', isCalculated: true, components: [
+    { name: 'Gross Loans', sign: '+' },
+    { name: 'Less: Unearned Income (-)', sign: '-' },
+    { name: 'Less: Reserves for Impaired Loans (NPLs) (-)', sign: '-' }
+  ]},
+  
+  { title: 'Securities & Derivatives', type: 'subheader' },
+  { title: 'Treasury Bills - Trading', keywords: [] },
+  { title: 'Government Bonds - Trading', keywords: [] },
+  { title: 'Corporate Bonds - Trading', keywords: [] },
+  { title: 'Bonds Issued by Fis - Trading', keywords: [] },
+  { title: 'Other Debt Securities - Trading', keywords: [] },
+  { title: 'Debt Securities -Trading', isCalculated: true, components: [
+    { name: 'Treasury Bills - Trading', sign: '+' },
+    { name: 'Government Bonds - Trading', sign: '+' },
+    { name: 'Corporate Bonds - Trading', sign: '+' },
+    { name: 'Bonds Issued by Fis - Trading', sign: '+' },
+    { name: 'Other Debt Securities - Trading', sign: '+' }
+  ]},
+  { title: 'Equities - Trading', keywords: [] },
+  { title: 'Less: Reserves for Impaired Trading Securities (-)', keywords: [] },
+  { title: 'Total Trading Securities (at Fair Value through Income statement)', isCalculated: true, components: [
+    { name: 'Debt Securities -Trading', sign: '+' },
+    { name: 'Equities - Trading', sign: '+' },
+    { name: 'Less: Reserves for Impaired Trading Securities (-)', sign: '-' }
+  ]},
+  
+  { title: 'Treasury Bills - AFS', keywords: [] },
+  { title: 'Government Bonds - AFS', keywords: ['ACTIF_02'] },
+  { title: 'Corporate Bonds - AFS', keywords: [] },
+  { title: 'Bonds Issued by Fis - AFS', keywords: [] },
+  { title: 'Other Debt Securities - AFS', keywords: ['ACTIF_05'] },
+  { title: 'Debt Securities - AFS', isCalculated: true, components: [
+    { name: 'Treasury Bills - AFS', sign: '+' },
+    { name: 'Government Bonds - AFS', sign: '+' },
+    { name: 'Corporate Bonds - AFS', sign: '+' },
+    { name: 'Bonds Issued by Fis - AFS', sign: '+' },
+    { name: 'Other Debt Securities - AFS', sign: '+' }
+  ]},
+  { title: 'Equities - AFS', keywords: ['ACTIF_06'] },
+  { title: 'Less: Reserves for Impaired AFS Securities (-)', keywords: [] },
+  { title: 'Total Available for Sale (AFS) Securities', isCalculated: true, components: [
+    { name: 'Debt Securities - AFS', sign: '+' },
+    { name: 'Equities - AFS', sign: '+' },
+    { name: 'Less: Reserves for Impaired AFS Securities (-)', sign: '-' }
+  ]},
+  
+  { title: 'Government Bonds -HTM', keywords: [] },
+  { title: 'Corporate Bonds - HTM', keywords: [] },
+  { title: 'Bonds issued by Fis - HTM', keywords: [] },
+  { title: 'Other Debt Securities - HTM', keywords: [] },
+  { title: 'Debt Securities - HTM', isCalculated: true, components: [
+    { name: 'Government Bonds -HTM', sign: '+' },
+    { name: 'Corporate Bonds - HTM', sign: '+' },
+    { name: 'Bonds issued by Fis - HTM', sign: '+' },
+    { name: 'Other Debt Securities - HTM', sign: '+' }
+  ]},
+  { title: 'Equities - HTM', keywords: [] },
+  { title: 'Less: Reserves for Impaired HTM Securities (-)', keywords: [] },
+  { title: 'Total Held to Maturity (HTM) Securities', isCalculated: true, components: [
+    { name: 'Debt Securities - HTM', sign: '+' },
+    { name: 'Equities - HTM', sign: '+' },
+    { name: 'Less: Reserves for Impaired HTM Securities (-)', sign: '-' }
+  ]},
+  
+  { title: 'Repurchase & Sale Agreements (Reverse Repos)', keywords: [] },
+  { title: 'Total Securities', isCalculated: true, components: [
+    { name: 'Total Trading Securities (at Fair Value through Income statement)', sign: '+' },
+    { name: 'Total Available for Sale (AFS) Securities', sign: '+' },
+    { name: 'Total Held to Maturity (HTM) Securities', sign: '+' }
+  ]},
+  
+  { title: 'Trading Derivatives', keywords: [] },
+  { title: 'ALM Derivatives', keywords: [] },
+  { title: 'Less: Reserves for Impaired Derivatives (-)', keywords: [] },
+  { title: 'Total Derivatives', isCalculated: true, components: [
+    { name: 'Trading Derivatives', sign: '+' },
+    { name: 'ALM Derivatives', sign: '+' },
+    { name: 'Less: Reserves for Impaired Derivatives (-)', sign: '-' }
+  ]},
+  { title: 'Total Securities & Derivatives', isCalculated: true, components: [
+    { name: 'Total Securities', sign: '+' },
+    { name: 'Total Derivatives', sign: '+' }
+  ]},
+  
+  { title: 'Other Earning Assets', type: 'subheader' },
+  { title: 'Interest Bearing Deposits with Banks', keywords: ['ACTIF_03'] },
+  { title: 'Investments in Property', keywords: [] },
+  { title: 'Investments in Subsidiaries (Equity Method)', keywords: [] },
+  { title: 'Investments in Affiliates & Joint Ventures (Equity Method)', keywords: ['ACTIF_07', 'ACTIF_10', 'ACTIF_11'], isSumOfCodes: true },
+  { title: 'Insurance Assets', keywords: [] },
+  { title: 'Other Earning Assets', keywords: [] },
+  { title: 'Less: Allowances for Impairment (-)', keywords: [] },
+  { title: 'Total Other Earning Assets', isCalculated: true, components: [
+    { name: 'Interest Bearing Deposits with Banks', sign: '+' },
+    { name: 'Investments in Property', sign: '+' },
+    { name: 'Investments in Subsidiaries (Equity Method)', sign: '+' },
+    { name: 'Investments in Affiliates & Joint Ventures (Equity Method)', sign: '+' },
+    { name: 'Insurance Assets', sign: '+' },
+    { name: 'Other Earning Assets', sign: '+' },
+    { name: 'Less: Allowances for Impairment (-)', sign: '-' }
+  ]},
+  { title: 'Total Earning Assets', isCalculated: true, components: [
+    { name: 'Net Loans', sign: '+' },
+    { name: 'Total Securities & Derivatives', sign: '+' },
+    { name: 'Total Other Earning Assets', sign: '+' }
+  ]},
+  
+  { title: 'NON EARNING ASSETS', type: 'header' },
+  { title: 'Cash and Due From Banks', keywords: ['ACTIF_01'] },
+  { title: 'Foreclosed Real Estate (OREO)', keywords: [] },
+  { title: 'Net Fixed Assets', keywords: ['ACTIF_14'] },
+  { title: 'Net Goodwill', keywords: [] },
+  { title: 'Net Other Intangibles', keywords: ['ACTIF_13'] },
+  { title: 'Current Tax Assets', keywords: [] },
+  { title: 'Deferred Tax Assets', keywords: [] },
+  { title: 'Discontinued Operations', keywords: [] },
+  { title: 'Accrued Interest Receivable', keywords: [] },
+  { title: 'Investments in Subsidiaries (Historical Cost)', keywords: [] },
+  { title: 'Investments in Affiliates & Joint Ventures (Historical Cost)', keywords: [] },
+  { title: 'Other Assets', keywords: ['ACTIF_08', 'ACTIF_09'], isSumOfCodes: true },
+  { title: 'Less: Allowances for Impairment of Other Assets (-)', keywords: [] },
+  { title: 'Total Non Earning Assets', isCalculated: true, components: [
+    { name: 'Cash and Due From Banks', sign: '+' },
+    { name: 'Foreclosed Real Estate (OREO)', sign: '+' },
+    { name: 'Net Fixed Assets', sign: '+' },
+    { name: 'Net Goodwill', sign: '+' },
+    { name: 'Net Other Intangibles', sign: '+' },
+    { name: 'Current Tax Assets', sign: '+' },
+    { name: 'Deferred Tax Assets', sign: '+' },
+    { name: 'Discontinued Operations', sign: '+' },
+    { name: 'Accrued Interest Receivable', sign: '+' },
+    { name: 'Investments in Subsidiaries (Historical Cost)', sign: '+' },
+    { name: 'Investments in Affiliates & Joint Ventures (Historical Cost)', sign: '+' },
+    { name: 'Other Assets', sign: '+' },
+    { name: 'Less: Allowances for Impairment of Other Assets (-)', sign: '-' }
+  ]},
+
+  { title: 'TOTAL ASSETS', keywords: ['ACTIF_TOTAL'], type: 'finalTotal', isCalculated: true, components: [
+    { name: 'Total Earning Assets', sign: '+' },
+    { name: 'Total Non Earning Assets', sign: '+' }
+  ]},
+];
+
+export const liabilitiesStructureBank: IRPLineItem[] = [
+  { title: 'LIABILITIES', type: 'header' },
+  { title: 'INTEREST BEARING LIABILITIES', type: 'header' },
+  { title: 'Deposits and Short-Term Funding', type: 'subheader' },
+  { title: 'Deposits - Current', keywords: [] },
+  { title: 'Deposits - Savings', keywords: [] },
+  { title: 'Deposits - Term', keywords: [] },
+  { title: 'Deposits - Other', keywords: ['PASSIF_03'] },
+  { title: 'Total Deposits', isCalculated: true, components: [
+    { name: 'Deposits - Current', sign: '+' },
+    { name: 'Deposits - Savings', sign: '+' },
+    { name: 'Deposits - Term', sign: '+' },
+    { name: 'Deposits - Other', sign: '+' }
+  ]},
+  { title: 'Sale & Repurchase Agreements (Repos)', keywords: [] },
+  { title: 'Short-term Borrowings', keywords: ['PASSIF_01', 'PASSIF_02'], isSumOfCodes: true },
+  { title: 'Short Term Wholesale Funding', isCalculated: true, components: [
+    { name: 'Sale & Repurchase Agreements (Repos)', sign: '+' },
+    { name: 'Short-term Borrowings', sign: '+' }
+  ]},
+  { title: 'TOTAL DEPOSITS and SHORT-TERM FUNDING', isCalculated: true, components: [
+    { name: 'Total Deposits', sign: '+' },
+    { name: 'Short Term Wholesale Funding', sign: '+' }
+  ]},
+  
+  { title: 'Long-Term Debt', type: 'subheader' },
+  { title: 'Domestic Bonds', keywords: [] },
+  { title: 'International Bonds', keywords: [] },
+  { title: 'Other Funding', keywords: ['PASSIF_04'] },
+  { title: 'Total Senior Debt', isCalculated: true, components: [
+    { name: 'Domestic Bonds', sign: '+' },
+    { name: 'International Bonds', sign: '+' },
+    { name: 'Other Funding', sign: '+' }
+  ]},
+  { title: 'Subordinated Debt (Non Tier II)', keywords: ['PASSIF_08'] },
+  { title: 'Other Subordinated & Structurally Subordinated Debt', keywords: [] },
+  { title: 'Total Subordinated Debt', isCalculated: true, components: [
+    { name: 'Subordinated Debt (Non Tier II)', sign: '+' },
+    { name: 'Other Subordinated & Structurally Subordinated Debt', sign: '+' }
+  ]},
+  { title: 'TOTAL LONG-TERM DEBT', isCalculated: true, components: [
+    { name: 'Total Senior Debt', sign: '+' },
+    { name: 'Total Subordinated Debt', sign: '+' }
+  ]},
+  { title: 'Total Funding', isCalculated: true, components: [
+    { name: 'TOTAL DEPOSITS and SHORT-TERM FUNDING', sign: '+' },
+    { name: 'TOTAL LONG-TERM DEBT', sign: '+' }
+  ]},
+  
+  { title: 'Trading Derivatives', keywords: [] },
+  { title: 'ALM Derivatives', keywords: [] },
+  { title: 'Derivatives Liabilities', isCalculated: true, components: [
+    { name: 'Trading Derivatives', sign: '+' },
+    { name: 'ALM Derivatives', sign: '+' }
+  ]},
+  
+  { title: 'Short Sold Positions Debt', keywords: [] },
+  { title: 'Short Sold Positions Equity', keywords: [] },
+  { title: 'Other Trading Liabilities', keywords: [] },
+  { title: 'Trading Liabilities', isCalculated: true, components: [
+    { name: 'Short Sold Positions Debt', sign: '+' },
+    { name: 'Short Sold Positions Equity', sign: '+' },
+    { name: 'Other Trading Liabilities', sign: '+' }
+  ]},
+  { title: 'Total Interest Bearing Liabilities', isCalculated: true, components: [
+    { name: 'Total Funding', sign: '+' },
+    { name: 'Derivatives Liabilities', sign: '+' },
+    { name: 'Trading Liabilities', sign: '+' }
+  ]},
+  
+  { title: 'NON-INTEREST BEARING LIABILITIES', type: 'header' },
+  { title: 'Fair Value Portion of Debt', keywords: [] },
+  { title: 'Reserves for Pensions and Other', keywords: ['PASSIF_07'] },
+  { title: 'Current Tax Liabilities', keywords: [] },
+  { title: 'Deferred Tax Liabilities', keywords: [] },
+  { title: 'Other Deferred Liabilities', keywords: [] },
+  { title: 'Insurance Liabilities', keywords: [] },
+  { title: 'Accrued Interest Payable', keywords: [] },
+  { title: 'Provisions', keywords: [] },
+  { title: 'Other Liabilities', keywords: ['PASSIF_05', 'PASSIF_06'], isSumOfCodes: true },
+  { title: 'Total Non Interest Bearing Liabilities', isCalculated: true, components: [
+    { name: 'Fair Value Portion of Debt', sign: '+' },
+    { name: 'Reserves for Pensions and Other', sign: '+' },
+    { name: 'Current Tax Liabilities', sign: '+' },
+    { name: 'Deferred Tax Liabilities', sign: '+' },
+    { name: 'Other Deferred Liabilities', sign: '+' },
+    { name: 'Insurance Liabilities', sign: '+' },
+    { name: 'Accrued Interest Payable', sign: '+' },
+    { name: 'Provisions', sign: '+' },
+    { name: 'Other Liabilities', sign: '+' }
+  ]},
+  
+  { title: 'HYBRID CAPITAL', type: 'header' },
+  { title: 'Preferred Shares and Hybrid Capital - Debt', keywords: [] },
+  { title: 'Preferred Shares and Hybrid Capital - Equity', keywords: [] },
+  { title: 'Total Hybrid Capital', isCalculated: true, components: [
+    { name: 'Preferred Shares and Hybrid Capital - Debt', sign: '+' },
+    { name: 'Preferred Shares and Hybrid Capital - Equity', sign: '+' }
+  ]},
+  
+  { title: 'TOTAL LIABILITIES', isCalculated: true, components: [
+    { name: 'Total Interest Bearing Liabilities', sign: '+' },
+    { name: 'Total Non Interest Bearing Liabilities', sign: '+' },
+    { name: 'Total Hybrid Capital', sign: '+' }
+  ], type: 'finalTotal' },
+  
+  { title: 'EQUITY', type: 'header' },
+  { title: 'Common Equity', type: 'subheader' },
+  { title: 'Common Shares and Paid-in Capital', keywords: ['PASSIF_10'] },
+  { title: 'Retained Earnings', keywords: ['PASSIF_15', 'PASSIF_16'], isSumOfCodes: true },
+  { title: 'Reserves', keywords: ['PASSIF_12', 'PASSIF_14'], isSumOfCodes: true },
+  { title: 'Fixed Assets Revaluation Reserves', keywords: [] },
+  { title: 'Treasury Stock (-)', keywords: [] },
+  { title: 'Other Common Equity', keywords: ['PASSIF_11'] },
+  { title: 'Total Common Equity', isCalculated: true, components: [
+    { name: 'Common Shares and Paid-in Capital', sign: '+' },
+    { name: 'Retained Earnings', sign: '+' },
+    { name: 'Reserves', sign: '+' },
+    { name: 'Fixed Assets Revaluation Reserves', sign: '+' },
+    { name: 'Treasury Stock (-)', sign: '-' },
+    { name: 'Other Common Equity', sign: '+' }
+  ]},
+
+  { title: 'Minority Interest', type: 'subheader' },
+  { title: 'Non-controlling Interest', keywords: [] },
+
+  { title: 'Other Comprehensive Income (OCI)', type: 'subheader' },
+  { title: 'Securities Revaluation Reserves', keywords: [] },
+  { title: 'Foreign Exchange Revaluation Reserves', keywords: [] },
+  { title: 'Fixed Asset Revaluations', keywords: [] },
+  { title: 'Other Accumulated OCI', keywords: ['PASSIF_13'] },
+  { title: 'TOTAL EQUITY', isCalculated: true, components: [
+    { name: 'Total Common Equity', sign: '+' },
+    { name: 'Non-controlling Interest', sign: '+' },
+    { name: 'Securities Revaluation Reserves', sign: '+' },
+    { name: 'Foreign Exchange Revaluation Reserves', sign: '+' },
+    { name: 'Fixed Asset Revaluations', sign: '+' },
+    { name: 'Other Accumulated OCI', sign: '+' }
+  ]},
+
+  { title: 'TOTAL LIABILITIES & EQUITY', keywords: ['PASSIF_TOTAL'], type: 'finalTotal', isCalculated: true, components: [
+    { name: 'TOTAL LIABILITIES', sign: '+' },
+    { name: 'TOTAL EQUITY', sign: '+' }
+  ]},
+];
 // ========================================
 // BANK - INCOME STATEMENT
 // ========================================
 export const incomeStatementStructureBank: IRPLineItem[] = [
-  { title: 'INCOME STATEMENT', type: 'header' },
+ { title: 'INCOME STATEMENT', type: 'header' },
+ { title: 'Statement Date', type: 'subheader' },
 
+  // --- REVENUS ET CHARGES D'INTERETS ---
   { title: 'REVENUS ET CHARGES D\'INTERETS', type: 'subheader' },
   { title: 'Interest Income on Loans & Advances', keywords: [] },
   { title: 'Interest Income on Securities', keywords: [] },
-  { title: 'Other Interest Income', keywords: ['CR_01'] },
+  { title: 'Other Interest Income', keywords: ['CR_01'] }, // Intérêts et produits assimilés
   { title: 'Total Interest Income', isCalculated: true, components: [
     { name: 'Interest Income on Loans & Advances', sign: '+' },
     { name: 'Interest Income on Securities', sign: '+' },
@@ -260,18 +570,18 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
 
   { title: 'Interest Expense on Deposits', keywords: [] },
   { title: 'Interest Expense on Borrowings', keywords: [] },
-  { title: 'Other Interest Expense', keywords: ['CR_02'] },
+  { title: 'Other Interest Expense', keywords: ['CR_02'] }, // Intérêts et charges assimilées
   { title: 'Total Interest Expense', isCalculated: true, components: [
     { name: 'Interest Expense on Deposits', sign: '+' },
     { name: 'Interest Expense on Borrowings', sign: '+' },
     { name: 'Other Interest Expense', sign: '+' }
   ]},
-  
   { title: 'Net Interest Income', isCalculated: true, components: [
     { name: 'Total Interest Income', sign: '+' },
     { name: 'Total Interest Expense', sign: '-' }
   ]},
 
+  // --- REVENUS HORS INTERETS (NON-INTEREST INCOME) ---
   { title: 'REVENUS HORS INTERETS (NON-INTEREST INCOME)', type: 'subheader' },
   { title: 'Net Gains(Losses) from Securities - Trading', keywords: ['CR_06'] },
   { title: 'Net Gains(Losses) from FX Trading', keywords: [] },
@@ -302,13 +612,12 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
 
   { title: 'Profit (Loss) from Op. Investments Accounted under Equity Method', keywords: [] },
   { title: 'Dividend Income', keywords: ['CR_03'] },
-  { title: 'Other Operating Income', keywords: ['CR_08', 'CR_11'], isSumOfCodes: true },
+  { title: 'Other Operating Income', keywords: ['CR_08', 'CR_11'], isSumOfCodes: true }, // Autres produits d'expl. + Subventions d'inv.
   { title: 'Other Non-Interest Income', isCalculated: true, components: [
     { name: 'Profit (Loss) from Op. Investments Accounted under Equity Method', sign: '+' },
     { name: 'Dividend Income', sign: '+' },
     { name: 'Other Operating Income', sign: '+' }
   ]},
-  
   { title: 'Non-Interest Income', isCalculated: true, components: [
     { name: 'Net Trading Income', sign: '+' },
     { name: 'Net Gains(Losses) on Assets, Liab. & Hedges at Fair Value', sign: '+' },
@@ -316,13 +625,14 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
     { name: 'Other Non-Interest Income', sign: '+' }
   ]},
   
+  // --- CHARGES HORS INTERETS (NON-INTEREST EXPENSES) ---
   { title: 'CHARGES HORS INTERETS (NON-INTEREST EXPENSES)', type: 'subheader' },
   { title: 'Personnel Expenses', keywords: [] },
   { title: 'Operating Premises Expense', keywords: [] },
   { title: 'Depreciation & Amortization Expense', keywords: ['CR_13'] },
   { title: 'Impairment Charges on Non Credit Related Items', keywords: [] },
   { title: 'FX Translation Losses (Gains)', keywords: [] },
-  { title: 'Other Operating Expenses', keywords: ['CR_09', 'CR_12'], isSumOfCodes: true },
+  { title: 'Other Operating Expenses', keywords: ['CR_09', 'CR_12'], isSumOfCodes: true }, // Autres charges d'expl. + Charges générales d'expl.
   { title: 'Non-Interest Expenses', isCalculated: true, components: [
     { name: 'Personnel Expenses', sign: '+' },
     { name: 'Operating Premises Expense', sign: '+' },
@@ -331,15 +641,15 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
     { name: 'FX Translation Losses (Gains)', sign: '+' },
     { name: 'Other Operating Expenses', sign: '+' }
   ]},
-  
   { title: 'Operating Profit before Provision Expenses', isCalculated: true, components: [
     { name: 'Net Interest Income', sign: '+' },
     { name: 'Non-Interest Income', sign: '+' },
     { name: 'Non-Interest Expenses', sign: '-' }
   ]},
 
+  // --- PROVISIONS ET RESULTAT ---
   { title: 'PROVISIONS ET RESULTAT', type: 'subheader' },
-  { title: 'Loan Loss Provisions - Gross', keywords: ['CR_15'] },
+  { title: 'Loan Loss Provisions - Gross', keywords: ['CR_15'] }, // Coût du risque
   { title: 'Securities and Other Credit Impairment Charges - Gross', keywords: [] },
   { title: 'Less: Recoveries (-)', keywords: [] },
   { title: 'Provision Expenses', isCalculated: true, components: [
@@ -348,7 +658,7 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
     { name: 'Less: Recoveries (-)', sign: '-' }
   ]},
 
-  { title: 'Operating Profit', isCalculated: true, components: [
+  { title: 'Operating Profit', isCalculated: true, components: [ // Résultat d'exploitation (CR_16)
     { name: 'Operating Profit before Provision Expenses', sign: '+' },
     { name: 'Provision Expenses', sign: '-' }
   ]},
@@ -356,22 +666,21 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
   { title: 'P/L from Non Op. Invest. Accounted under Equity Method', keywords: [] },
   { title: 'Non Recurring Income', keywords: [] },
   { title: 'Non Recurring Expense', keywords: [] },
-  { title: 'Other Non-operating Income & (Expenses)', keywords: ['CR_17'] },
+  { title: 'Other Non-operating Income & (Expenses)', keywords: ['CR_17'] }, // Gains ou pertes nets sur actifs immobilisés
 
-  { title: 'Pre-tax Profit', isCalculated: true, components: [
+  { title: 'Pre-tax Profit', isCalculated: true, components: [ // Résultat avant impôt (CR_18)
     { name: 'Operating Profit', sign: '+' },
     { name: 'P/L from Non Op. Invest. Accounted under Equity Method', sign: '+' },
     { name: 'Non Recurring Income', sign: '+' },
     { name: 'Non Recurring Expense', sign: '+' },
     { name: 'Other Non-operating Income & (Expenses)', sign: '+' }
   ]},
-  
-  { title: 'Tax expense', keywords: ['CR_19'] },
+  { title: 'Tax expense', keywords: ['CR_19'] }, // Impôts sur les bénéfices
   { title: 'Profit(Loss) from Discontinued Operations', keywords: [] },
 
-  { title: 'Net Income', type: 'finalTotal', isCalculated: true, components: [
+  { title: 'Net Income', type: 'finalTotal', isCalculated: true, components: [ // Résultat net (CR_20)
     { name: 'Pre-tax Profit', sign: '+' },
     { name: 'Tax expense', sign: '-' },
     { name: 'Profit(Loss) from Discontinued Operations', sign: '+' }
   ]},
-]
+];

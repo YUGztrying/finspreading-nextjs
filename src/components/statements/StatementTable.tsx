@@ -1,7 +1,7 @@
 // src/components/statements/StatementTable.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { LineItem } from '@/types/database.types'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -25,7 +25,10 @@ export default function StatementTable({
 }: StatementTableProps) {
   const [lineItems, setLineItems] = useState<LineItem[]>(initialLineItems)
   const [hasChanges, setHasChanges] = useState(false)
-
+  useEffect(() => {
+  setLineItems(initialLineItems)
+  setHasChanges(false)
+}, [initialLineItems])
   const isIncomeStatement = statementType === 'compte_resultats'
 
   const updateAmount = (lineIndex: number, periodIndex: number, value: string) => {
