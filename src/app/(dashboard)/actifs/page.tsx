@@ -19,6 +19,7 @@ import StatementTable from '@/components/statements/StatementTable'
 import { LineItem } from '@/types/database.types'
 import RenameCompanyDialog from '@/components/RenameCompanyDialog'
 import ExportButton from '@/components/ExportButton'
+import BalanceChecker from '@/components/BalanceChecker'
 
 interface FinancialStatement {
   id: string
@@ -39,6 +40,7 @@ export default function ActifsPage() {
   const [companies, setCompanies] = useState<string[]>([])
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const [statement, setStatement] = useState<FinancialStatement | null>(null)
+  const [passifsStatement, setPassifsStatement] = useState<FinancialStatement | null>(null)
   const [userId, setUserId] = useState<string>('')
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info'
@@ -92,36 +94,52 @@ export default function ActifsPage() {
     fetchData()
   }, [router])
 
-  // Fetch statement when company changes
+  // Fetch statements when company changes
   useEffect(() => {
     if (!selectedCompany || !userId) return
 
-    const fetchStatement = async () => {
+    const fetchStatements = async () => {
       setLoading(true)
       setNotification(null)
 
       try {
-        const response = await fetch(
+        // Fetch actifs
+        const actifsResponse = await fetch(
           `/api/statements/list?user_id=${userId}&company_name=${encodeURIComponent(selectedCompany)}&statement_type=actifs`
         )
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch statement')
+        if (actifsResponse.ok) {
+          const actifsResult = await actifsResponse.json()
+          if (actifsResult.statements && actifsResult.statements.length > 0) {
+            setStatement(actifsResult.statements[0])
+          } else {
+            setStatement(null)
+          }
         }
 
-        const result = await response.json()
+        // Fetch passifs pour le balance checker
+        const passifsResponse = await fetch(
+          `/api/statements/list?user_id=${userId}&company_name=${encodeURIComponent(selectedCompany)}&statement_type=passifs`
+        )
 
-        if (result.statements && result.statements.length > 0) {
-          setStatement(result.statements[0])
-        } else {
+        if (passifsResponse.ok) {
+          const passifsResult = await passifsResponse.json()
+          if (passifsResult.statements && passifsResult.statements.length > 0) {
+            setPassifsStatement(passifsResult.statements[0])
+          } else {
+            setPassifsStatement(null)
+          }
+        }
+
+        if (!statement && !passifsStatement) {
           setNotification({
             type: 'info',
             message: `Aucun état des actifs trouvé pour ${selectedCompany}`
           })
-          setStatement(null)
         }
+
       } catch (error: any) {
-        console.error('Error fetching statement:', error)
+        console.error('Error fetching statements:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement de l\'état'
@@ -131,8 +149,27 @@ export default function ActifsPage() {
       }
     }
 
-    fetchStatement()
+    fetchStatements()
   }, [selectedCompany, userId])
+
+  // Calculate totals for balance checker
+  const actifsAmounts = statement?.periods.map((_, periodIdx) => {
+  return statement.line_items
+    .filter((item: any) => item.is_total)
+    .reduce((sum: number, item: any) => {
+      const amounts = item.amounts || []
+      return sum + (amounts[periodIdx] || 0)
+    }, 0)
+}) || []
+
+const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
+  return passifsStatement.line_items
+    .filter((item: any) => item.is_total)
+    .reduce((sum: number, item: any) => {
+      const amounts = item.amounts || []
+      return sum + (amounts[periodIdx] || 0)
+    }, 0)
+}) || []
 
   // Refresh data after rename
   const handleRenameSuccess = async () => {
@@ -145,7 +182,6 @@ export default function ActifsPage() {
 
     setLoading(true)
 
-    // Refresh companies list
     try {
       console.log('📡 Fetching updated companies list...')
       const response = await fetch(
@@ -162,18 +198,27 @@ export default function ActifsPage() {
           console.log('✅ Setting selected company to:', firstCompany)
           setSelectedCompany(firstCompany)
           
-          // Fetch statement for new company name
-          console.log('📡 Fetching statement for:', firstCompany)
-          const statementResponse = await fetch(
+          // Fetch actifs
+          const actifsResponse = await fetch(
             `/api/statements/list?user_id=${userId}&company_name=${encodeURIComponent(firstCompany)}&statement_type=actifs`
           )
           
-          if (statementResponse.ok) {
-            const statementResult = await statementResponse.json()
-            console.log('📄 Fetched statement:', statementResult.statements?.[0]?.company_name)
-            
-            if (statementResult.statements && statementResult.statements.length > 0) {
-              setStatement(statementResult.statements[0])
+          if (actifsResponse.ok) {
+            const actifsResult = await actifsResponse.json()
+            if (actifsResult.statements && actifsResult.statements.length > 0) {
+              setStatement(actifsResult.statements[0])
+            }
+          }
+
+          // Fetch passifs
+          const passifsResponse = await fetch(
+            `/api/statements/list?user_id=${userId}&company_name=${encodeURIComponent(firstCompany)}&statement_type=passifs`
+          )
+          
+          if (passifsResponse.ok) {
+            const passifsResult = await passifsResponse.json()
+            if (passifsResult.statements && passifsResult.statements.length > 0) {
+              setPassifsStatement(passifsResult.statements[0])
             }
           }
         }
@@ -195,7 +240,7 @@ export default function ActifsPage() {
     setNotification(null)
 
     try {
-      const supabase = createClient()
+      const supabase = createClient() as any
 
       const { error } = await supabase
         .from('financial_statements')
@@ -261,7 +306,6 @@ export default function ActifsPage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
             {selectedCompany && userId && (
               <div className="flex items-center gap-2">
                 <ExportButton
@@ -339,6 +383,16 @@ export default function ActifsPage() {
               {notification.message}
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Balance Checker - Only show if we have both actifs and passifs */}
+        {statement && passifsStatement && (
+          <BalanceChecker
+            periods={statement.periods}
+            actifsAmounts={actifsAmounts}
+            passifsAmounts={passifsAmounts}
+            companyName={selectedCompany}
+          />
         )}
 
         {statement && (

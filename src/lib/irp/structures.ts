@@ -149,9 +149,10 @@ export const liabilitiesStructureMicrofinance: IRPLineItem[] = [
   { title: 'Treasury Stock', keywords: [], isSumOfCodes: true },
   { title: 'Minority Interest', keywords: [], isSumOfCodes: true },
   { title: 'Total Common Equity', isCalculated: true, components: [
-    'Common Shares', 'Paid in Capital', 'Retained Earnings', 'Reserves', 'Fixed Assets Revaluation Reserves',
+    'Common Shares', 'Paid-in Capital', 'Retained Earnings', 'Reserves',
     'Donated Equity (MFI only)', 'Preferred Shares Equity', 'Other Common Equity', 'Less: Treasury Stock (-)'
   ]},
+  
   { title: 'Minority Interest', type: 'subheader' },
   { title: 'Non-Controlling Interest', keywords: [], isSumOfCodes: true },
 
@@ -174,21 +175,17 @@ export const incomeStatementStructureMicrofinance: IRPLineItem[] = [
   { title: 'INCOME STATEMENT', type: 'header' },
   { title: 'Statement Date', type: 'subheader' },
 
-  // Total Interest Income
   { title: 'Total Interest Income', type: 'subheader' },
   { title: 'Loan Interest Income', keywords: ['MFP_V3B'], isSumOfCodes: true },
   { title: 'Other Interest Income', keywords: ['MFP_V2Q', 'MFP_V3R', 'MFP_V2a', 'MFP_V1A', 'MFP_V1L'], isSumOfCodes: true },
   { title: 'Total Interest Income', keywords: [], isCalculated: true, components: [{name: 'Loan Interest Income', sign: '+'}, {name: 'Other Interest Income', sign: '+' }], type: 'majorTotal' },
 
-  // Total Interest Expenses
   { title: 'Interest on Deposits', keywords: ['MFC_R1L', 'MFC_R3C'], isSumOfCodes: true },
   { title: 'Interest Expense', keywords: ['MFC_R2A', 'MFC_R5Y'], isSumOfCodes: true },
   { title: 'Total Interest Expenses', keywords: [], isCalculated: true, components: [{name: 'Interest on Deposits', sign: '+'}, {name: 'Interest Expense', sign: '+' }], type: 'majorTotal' },
 
-  // Net Interest Margin
   { title: 'Net Interest Margin', keywords: [], isCalculated: true, components: [{name: 'Total Interest Income', sign: '+'}, {name: 'Total Interest Expenses', sign: '-' }], type: 'majorTotal' },
 
-  // Non-Interest Income
   { title: 'Other Fees - Net', keywords: ['MFP_V2T', 'MFP_V3X', '-MFC_R2Z', '-MFC_R3T'], isSumOfCodes: true },
   { title: 'Total Fee Income', keywords: [], isCalculated: true, components: [{name: 'Other Fees - Net', sign: '+'}] },
 
@@ -200,11 +197,10 @@ export const incomeStatementStructureMicrofinance: IRPLineItem[] = [
 
   { title: 'Total Operating Income', keywords: [], isCalculated: true, components: [{name: 'Net Interest Margin', sign: '+'}, {name: 'Total Fee Income', sign: '+'}, {name: 'Total Investment Income', sign: '+'}, {name: 'Total Other Income', sign: '+' }], type: 'majorTotal' },
 
-  // Operating Expenses
   { title: 'Personnel Expenses', keywords: ['MFC_S02'], isSumOfCodes: true },
   { title: 'Sales, General & Administrative Expenses', keywords: ['MFC_S2A'], isSumOfCodes: true },
   { title: 'Depreciation & Amortization Expense', keywords: ['MFC_T53', 'MFC_T54', 'MFC_T55'], isSumOfCodes: true },
-  { title: 'All Other Expenses', keywords: ['MFC_S1A', 'MFC_Z27'], isSumOfCodes: true, keywordsDescription: ['ACHAT ET VARIATION DE STOCK'] },
+  { title: 'All Other Expenses', keywords: ['MFC_S1A', 'MFC_Z27'], isSumOfCodes: true },
   { title: 'Total Operating Expenses', isCalculated: true, components: [
       {name: 'Personnel Expenses', sign: '+'}, {name: 'Sales, General & Administrative Expenses', sign: '+'},
       {name: 'Depreciation & Amortization Expense', sign: '+'}, {name: 'All Other Expenses', sign: '+'}
@@ -216,7 +212,6 @@ export const incomeStatementStructureMicrofinance: IRPLineItem[] = [
 
   { title: 'Net Profit From Operations', isCalculated: true, components: [{name: 'Operating Profit before Provision Expenses', sign: '+'}, {name: 'Net Provision Expenses on Loan Portfolio', sign: '-' }], type: 'majorTotal' },
 
-  // Non Operating Income/Expense
   { title: 'Non Operating Income/Expense', type: 'subheader' },
   { title: 'Non Recurring Income', keywords: [], isSumOfCodes: true },
   { title: 'Non Recurring Expense', keywords: ['MFC_T80', 'MFC_T81'], isSumOfCodes: true },
@@ -241,7 +236,6 @@ export const incomeStatementStructureMicrofinance: IRPLineItem[] = [
   { title: 'TCI Attributable to Non Controlling Interests', keywords: [] },
   { title: 'TCI Attributable to Parent Shareholders', isCalculated: true, components: [{name: 'Total Comprehensive Income', sign: '+'}, {name: 'TCI Attributable to Non Controlling Interests', sign: '-' }], type: 'finalTotal' }
 ];
-
 
 export const assetsStructureBank: IRPLineItem[] = [
   { title: 'ASSETS', type: 'header' },
@@ -550,18 +544,15 @@ export const liabilitiesStructureBank: IRPLineItem[] = [
     { name: 'TOTAL EQUITY', sign: '+' }
   ]},
 ];
-// ========================================
-// BANK - INCOME STATEMENT
-// ========================================
+
 export const incomeStatementStructureBank: IRPLineItem[] = [
  { title: 'INCOME STATEMENT', type: 'header' },
  { title: 'Statement Date', type: 'subheader' },
 
-  // --- REVENUS ET CHARGES D'INTERETS ---
   { title: 'REVENUS ET CHARGES D\'INTERETS', type: 'subheader' },
   { title: 'Interest Income on Loans & Advances', keywords: [] },
   { title: 'Interest Income on Securities', keywords: [] },
-  { title: 'Other Interest Income', keywords: ['CR_01'] }, // Intérêts et produits assimilés
+  { title: 'Other Interest Income', keywords: ['CR_01'] },
   { title: 'Total Interest Income', isCalculated: true, components: [
     { name: 'Interest Income on Loans & Advances', sign: '+' },
     { name: 'Interest Income on Securities', sign: '+' },
@@ -570,7 +561,7 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
 
   { title: 'Interest Expense on Deposits', keywords: [] },
   { title: 'Interest Expense on Borrowings', keywords: [] },
-  { title: 'Other Interest Expense', keywords: ['CR_02'] }, // Intérêts et charges assimilées
+  { title: 'Other Interest Expense', keywords: ['CR_02'] },
   { title: 'Total Interest Expense', isCalculated: true, components: [
     { name: 'Interest Expense on Deposits', sign: '+' },
     { name: 'Interest Expense on Borrowings', sign: '+' },
@@ -581,7 +572,6 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
     { name: 'Total Interest Expense', sign: '-' }
   ]},
 
-  // --- REVENUS HORS INTERETS (NON-INTEREST INCOME) ---
   { title: 'REVENUS HORS INTERETS (NON-INTEREST INCOME)', type: 'subheader' },
   { title: 'Net Gains(Losses) from Securities - Trading', keywords: ['CR_06'] },
   { title: 'Net Gains(Losses) from FX Trading', keywords: [] },
@@ -612,7 +602,7 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
 
   { title: 'Profit (Loss) from Op. Investments Accounted under Equity Method', keywords: [] },
   { title: 'Dividend Income', keywords: ['CR_03'] },
-  { title: 'Other Operating Income', keywords: ['CR_08', 'CR_11'], isSumOfCodes: true }, // Autres produits d'expl. + Subventions d'inv.
+  { title: 'Other Operating Income', keywords: ['CR_08', 'CR_11'], isSumOfCodes: true },
   { title: 'Other Non-Interest Income', isCalculated: true, components: [
     { name: 'Profit (Loss) from Op. Investments Accounted under Equity Method', sign: '+' },
     { name: 'Dividend Income', sign: '+' },
@@ -625,14 +615,13 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
     { name: 'Other Non-Interest Income', sign: '+' }
   ]},
   
-  // --- CHARGES HORS INTERETS (NON-INTEREST EXPENSES) ---
   { title: 'CHARGES HORS INTERETS (NON-INTEREST EXPENSES)', type: 'subheader' },
   { title: 'Personnel Expenses', keywords: [] },
   { title: 'Operating Premises Expense', keywords: [] },
   { title: 'Depreciation & Amortization Expense', keywords: ['CR_13'] },
   { title: 'Impairment Charges on Non Credit Related Items', keywords: [] },
   { title: 'FX Translation Losses (Gains)', keywords: [] },
-  { title: 'Other Operating Expenses', keywords: ['CR_09', 'CR_12'], isSumOfCodes: true }, // Autres charges d'expl. + Charges générales d'expl.
+  { title: 'Other Operating Expenses', keywords: ['CR_09', 'CR_12'], isSumOfCodes: true },
   { title: 'Non-Interest Expenses', isCalculated: true, components: [
     { name: 'Personnel Expenses', sign: '+' },
     { name: 'Operating Premises Expense', sign: '+' },
@@ -647,9 +636,8 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
     { name: 'Non-Interest Expenses', sign: '-' }
   ]},
 
-  // --- PROVISIONS ET RESULTAT ---
   { title: 'PROVISIONS ET RESULTAT', type: 'subheader' },
-  { title: 'Loan Loss Provisions - Gross', keywords: ['CR_15'] }, // Coût du risque
+  { title: 'Loan Loss Provisions - Gross', keywords: ['CR_15'] },
   { title: 'Securities and Other Credit Impairment Charges - Gross', keywords: [] },
   { title: 'Less: Recoveries (-)', keywords: [] },
   { title: 'Provision Expenses', isCalculated: true, components: [
@@ -658,7 +646,7 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
     { name: 'Less: Recoveries (-)', sign: '-' }
   ]},
 
-  { title: 'Operating Profit', isCalculated: true, components: [ // Résultat d'exploitation (CR_16)
+  { title: 'Operating Profit', isCalculated: true, components: [
     { name: 'Operating Profit before Provision Expenses', sign: '+' },
     { name: 'Provision Expenses', sign: '-' }
   ]},
@@ -666,19 +654,19 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
   { title: 'P/L from Non Op. Invest. Accounted under Equity Method', keywords: [] },
   { title: 'Non Recurring Income', keywords: [] },
   { title: 'Non Recurring Expense', keywords: [] },
-  { title: 'Other Non-operating Income & (Expenses)', keywords: ['CR_17'] }, // Gains ou pertes nets sur actifs immobilisés
+  { title: 'Other Non-operating Income & (Expenses)', keywords: ['CR_17'] },
 
-  { title: 'Pre-tax Profit', isCalculated: true, components: [ // Résultat avant impôt (CR_18)
+  { title: 'Pre-tax Profit', isCalculated: true, components: [
     { name: 'Operating Profit', sign: '+' },
     { name: 'P/L from Non Op. Invest. Accounted under Equity Method', sign: '+' },
     { name: 'Non Recurring Income', sign: '+' },
     { name: 'Non Recurring Expense', sign: '+' },
     { name: 'Other Non-operating Income & (Expenses)', sign: '+' }
   ]},
-  { title: 'Tax expense', keywords: ['CR_19'] }, // Impôts sur les bénéfices
+  { title: 'Tax expense', keywords: ['CR_19'] },
   { title: 'Profit(Loss) from Discontinued Operations', keywords: [] },
 
-  { title: 'Net Income', type: 'finalTotal', isCalculated: true, components: [ // Résultat net (CR_20)
+  { title: 'Net Income', type: 'finalTotal', isCalculated: true, components: [
     { name: 'Pre-tax Profit', sign: '+' },
     { name: 'Tax expense', sign: '-' },
     { name: 'Profit(Loss) from Discontinued Operations', sign: '+' }

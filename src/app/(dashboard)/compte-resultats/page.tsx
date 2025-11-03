@@ -57,7 +57,6 @@ export default function CompteResultatsPage() {
       setUserId(user.id)
 
       try {
-        // Fetch all statements for this user
         const response = await fetch(
           `/api/statements/list?user_id=${user.id}&statement_type=compte_resultats`
         )
@@ -141,7 +140,7 @@ export default function CompteResultatsPage() {
     setNotification(null)
 
     try {
-      const supabase = createClient()
+      const supabase = createClient() as any
 
       const { error } = await supabase
         .from('financial_statements')
@@ -160,13 +159,11 @@ export default function CompteResultatsPage() {
         message: '✅ Modifications enregistrées avec succès'
       })
 
-      // Update local state
       setStatement({
         ...statement,
         line_items: updatedLineItems
       })
 
-      // Clear notification after 3 seconds
       setTimeout(() => setNotification(null), 3000)
 
     } catch (error: any) {
@@ -190,7 +187,6 @@ export default function CompteResultatsPage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Header */}
       <header className="border-b border-stone-200 bg-white sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -212,7 +208,6 @@ export default function CompteResultatsPage() {
             </div>
           </div>
 
-          {/* Company Selector */}
           {companies.length > 0 && (
             <div className="flex items-center gap-3">
               <Building2 className="w-5 h-5 text-stone-600" />
@@ -233,9 +228,7 @@ export default function CompteResultatsPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-        {/* Notification */}
         {notification && (
           <Alert
             variant={notification.type === 'error' ? 'destructive' : 'default'}
@@ -266,7 +259,6 @@ export default function CompteResultatsPage() {
           </Alert>
         )}
 
-        {/* Statement Info Card */}
         {statement && (
           <Card className="border-stone-200 bg-white shadow-sm">
             <CardHeader className="border-b border-stone-100">
@@ -296,7 +288,6 @@ export default function CompteResultatsPage() {
           </Card>
         )}
 
-        {/* Statement Table */}
         {statement ? (
           <Card className="border-stone-200 bg-white shadow-sm">
             <CardContent className="p-6">
@@ -305,6 +296,7 @@ export default function CompteResultatsPage() {
                 lineItems={statement.line_items}
                 onSave={handleSave}
                 readOnly={saving}
+                statementType="compte_resultats"
               />
             </CardContent>
           </Card>

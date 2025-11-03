@@ -1,4 +1,4 @@
-// src/app/(dashboard)/irp/page.tsx
+// src/app/(dashboard)/rapport-irp/page.tsx
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
@@ -56,7 +56,7 @@ export default function IRPReportPage() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const supabase = createClient()
+        const supabase = createClient() as any
         const { data, error: authError } = await supabase.auth.getUser()
 
         if (authError || !data?.user) {
@@ -75,8 +75,7 @@ export default function IRPReportPage() {
 
         if (error) throw error
 
-        const uniqueCompanies = [...new Set(statements?.map(s => s.company_name) || [])]
-        setCompanies(uniqueCompanies)
+        const uniqueCompanies = [...new Set(statements?.map((s: any) => s.company_name) || [])] as string[]
 
         if (uniqueCompanies.length > 0) {
           setSelectedCompany(uniqueCompanies[0])
@@ -98,7 +97,7 @@ export default function IRPReportPage() {
     const fetchIRPData = async () => {
       try {
         setLoading(true)
-        const supabase = createClient()
+        const supabase = createClient() as any
         const { data: statements, error } = await supabase
           .from('financial_statements')
           .select('*')
@@ -107,9 +106,9 @@ export default function IRPReportPage() {
 
         if (error) throw error
 
-        const actifs = statements?.find(s => s.statement_type === 'actifs')
-        const passifs = statements?.find(s => s.statement_type === 'passifs')
-        const cr = statements?.find(s => s.statement_type === 'compte_resultats')
+        const actifs = statements?.find((s: any) => s.statement_type === 'actifs')
+        const passifs = statements?.find((s: any) => s.statement_type === 'passifs')
+        const cr = statements?.find((s: any) => s.statement_type === 'compte_resultats')
 
         // Get all unique periods
         const allPeriods = new Set<string>()

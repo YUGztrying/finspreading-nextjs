@@ -150,7 +150,7 @@ export default function StatementTable({
                     hover:bg-stone-50 transition-colors
                   `}
                   style={{
-                    paddingLeft: `${line.indent_level * 1}rem`
+                    paddingLeft: `${(line.indent_level || 0) * 1}rem`
                   }}
                 >
                   <td className="px-4 py-2 align-top">

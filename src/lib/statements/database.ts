@@ -25,7 +25,7 @@ export async function saveFinancialStatement(
   userId: string
 ): Promise<{ success: boolean; statement_id?: string; error?: string }> {
   try {
-    const supabase = createServiceClient()
+    const supabase = createServiceClient() as any
 
     // Step 1: Validate the data
     const { cleanedRows } = validateFinancialRows(data.line_items)
@@ -56,7 +56,7 @@ export async function saveFinancialStatement(
         },
         {
           periods: data.periods,
-          line_items: cleanedRows
+          line_items: cleanedRows as LineItem[]
         },
         data.type_institution,
         data.statement_type
@@ -92,7 +92,7 @@ export async function saveFinancialStatement(
         type_institution: data.type_institution,
         statement_type: data.statement_type,
         periods: data.periods,
-        line_items: cleanedRows,
+        line_items: cleanedRows as LineItem[],
         source_files: [data.source_file]
       }
 
@@ -274,7 +274,7 @@ export async function getCompanyStatements(
   userId: string,
   companyName: string
 ) {
-  const supabase = createServiceClient()
+  const supabase = createServiceClient() as any
 
   const { data, error } = await supabase
     .from('financial_statements')
@@ -294,7 +294,7 @@ export async function getCompanyStatements(
  * Get all companies for current user
  */
 export async function getUserCompanies(userId: string) {
-  const supabase = createServiceClient()
+  const supabase = createServiceClient() as any
 
   const { data, error } = await supabase
     .from('user_companies')

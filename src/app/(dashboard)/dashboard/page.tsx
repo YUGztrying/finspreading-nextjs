@@ -187,32 +187,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Test API */}
-        <Card className="mt-8 border-stone-200 bg-emerald-50 border-emerald-200">
-          <CardHeader>
-            <CardTitle className="text-lg font-medium text-emerald-900">
-              ✅ Connexion établie
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-emerald-800">
-              Votre configuration Supabase fonctionne correctement. Vous êtes connecté en tant que <strong>{user?.email}</strong>
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4 border-emerald-300"
-              onClick={async () => {
-                const response = await fetch('/api/test')
-                const data = await response.json()
-                alert(JSON.stringify(data, null, 2))
-              }}
-            >
-              Tester l'API
-            </Button>
-          </CardContent>
-        </Card>
       </main>
     </div>
   )

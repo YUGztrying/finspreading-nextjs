@@ -17,6 +17,9 @@ import {
 import { ArrowLeft, Building2, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
 import StatementTable from '@/components/statements/StatementTable'
 import { LineItem } from '@/types/database.types'
+import RenameCompanyDialog from '@/components/RenameCompanyDialog'
+import ExportButton from '@/components/ExportButton'
+import BalanceChecker from '@/components/BalanceChecker'
 
 interface FinancialStatement {
   id: string
@@ -37,6 +40,7 @@ export default function PassifsPage() {
   const [companies, setCompanies] = useState<string[]>([])
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const [statement, setStatement] = useState<FinancialStatement | null>(null)
+  const [actifsStatement, setActifsStatement] = useState<FinancialStatement | null>(null)
   const [userId, setUserId] = useState<string>('')
   const [notification, setNotification] = useState<{
     type: 'success' | 'error' | 'info'
@@ -46,35 +50,31 @@ export default function PassifsPage() {
   // Fetch user and companies
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push('/login')
+        return
+      }
+
+      setUserId(user.id)
+
       try {
-        const supabase = createClient()
-        const { data: authData } = await supabase.auth.getUser()
-        const user = authData?.user
-
-        if (!user) {
-          router.push('/login')
-          return
-        }
-
-        setUserId(user.id)
-
         const response = await fetch(
-          `/api/statements/list?user_id=${encodeURIComponent(user.id)}&statement_type=passifs`
+          `/api/statements/list?user_id=${user.id}&statement_type=passifs`
         )
 
         if (!response.ok) {
           throw new Error('Failed to fetch statements')
         }
 
-        const result = await response.json().catch(() => ({}))
+        const result = await response.json()
 
-        if (Array.isArray(result.companies) && result.companies.length > 0) {
+        if (result.companies && result.companies.length > 0) {
           setCompanies(result.companies)
           setSelectedCompany(result.companies[0])
         } else {
-          setCompanies([])
-          setSelectedCompany('')
           setNotification({
             type: 'info',
             message: 'Aucun état financier trouvé. Commencez par télécharger un document.'
@@ -84,7 +84,7 @@ export default function PassifsPage() {
         console.error('Error fetching companies:', error)
         setNotification({
           type: 'error',
-          message: error?.message || 'Erreur lors du chargement des données'
+          message: error.message || 'Erreur lors du chargement des données'
         })
       } finally {
         setLoading(false)
@@ -94,47 +94,140 @@ export default function PassifsPage() {
     fetchData()
   }, [router])
 
-  // Fetch statement when company changes
+  // Fetch statements when company changes
   useEffect(() => {
     if (!selectedCompany || !userId) return
 
-    const fetchStatement = async () => {
+    const fetchStatements = async () => {
       setLoading(true)
       setNotification(null)
 
       try {
-        const response = await fetch(
-          `/api/statements/list?user_id=${encodeURIComponent(userId)}&company_name=${encodeURIComponent(selectedCompany)}&statement_type=passifs`
+        // Fetch passifs
+        const passifsResponse = await fetch(
+          `/api/statements/list?user_id=${userId}&company_name=${encodeURIComponent(selectedCompany)}&statement_type=passifs`
         )
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch statement')
+        if (passifsResponse.ok) {
+          const passifsResult = await passifsResponse.json()
+          if (passifsResult.statements && passifsResult.statements.length > 0) {
+            setStatement(passifsResult.statements[0])
+          } else {
+            setStatement(null)
+          }
         }
 
-        const result = await response.json().catch(() => ({}))
+        // Fetch actifs pour le balance checker
+        const actifsResponse = await fetch(
+          `/api/statements/list?user_id=${userId}&company_name=${encodeURIComponent(selectedCompany)}&statement_type=actifs`
+        )
 
-        if (Array.isArray(result.statements) && result.statements.length > 0) {
-          setStatement(result.statements[0])
-        } else {
+        if (actifsResponse.ok) {
+          const actifsResult = await actifsResponse.json()
+          if (actifsResult.statements && actifsResult.statements.length > 0) {
+            setActifsStatement(actifsResult.statements[0])
+          } else {
+            setActifsStatement(null)
+          }
+        }
+
+        if (!statement && !actifsStatement) {
           setNotification({
             type: 'info',
             message: `Aucun état des passifs trouvé pour ${selectedCompany}`
           })
-          setStatement(null)
         }
+
       } catch (error: any) {
-        console.error('Error fetching statement:', error)
+        console.error('Error fetching statements:', error)
         setNotification({
           type: 'error',
-          message: error?.message || 'Erreur lors du chargement de l\'état'
+          message: error.message || 'Erreur lors du chargement de l\'état'
         })
       } finally {
         setLoading(false)
       }
     }
 
-    fetchStatement()
+    fetchStatements()
   }, [selectedCompany, userId])
+
+  // Calculate totals for balance checker
+  const actifsAmounts = actifsStatement?.periods.map((_, periodIdx) => {
+  return actifsStatement.line_items
+    .filter((item: any) => item.is_total)
+    .reduce((sum: number, item: any) => {
+      const amounts = item.amounts || []
+      return sum + (amounts[periodIdx] || 0)
+    }, 0)
+}) || []
+
+const passifsAmounts = statement?.periods.map((_, periodIdx) => {
+  return statement.line_items
+    .filter((item: any) => item.is_total)
+    .reduce((sum: number, item: any) => {
+      const amounts = item.amounts || []
+      return sum + (amounts[periodIdx] || 0)
+    }, 0)
+}) || []
+
+  // Refresh data after rename
+  const handleRenameSuccess = async () => {
+    console.log('🔄 Starting refresh after rename...')
+    
+    setNotification({
+      type: 'success',
+      message: '✅ Entreprise renommée avec succès'
+    })
+
+    setLoading(true)
+
+    try {
+      const response = await fetch(
+        `/api/statements/list?user_id=${userId}&statement_type=passifs`
+      )
+
+      if (response.ok) {
+        const result = await response.json()
+        
+        if (result.companies && result.companies.length > 0) {
+          setCompanies(result.companies)
+          const firstCompany = result.companies[0]
+          setSelectedCompany(firstCompany)
+          
+          // Fetch passifs
+          const passifsResponse = await fetch(
+            `/api/statements/list?user_id=${userId}&company_name=${encodeURIComponent(firstCompany)}&statement_type=passifs`
+          )
+          
+          if (passifsResponse.ok) {
+            const passifsResult = await passifsResponse.json()
+            if (passifsResult.statements && passifsResult.statements.length > 0) {
+              setStatement(passifsResult.statements[0])
+            }
+          }
+
+          // Fetch actifs
+          const actifsResponse = await fetch(
+            `/api/statements/list?user_id=${userId}&company_name=${encodeURIComponent(firstCompany)}&statement_type=actifs`
+          )
+          
+          if (actifsResponse.ok) {
+            const actifsResult = await actifsResponse.json()
+            if (actifsResult.statements && actifsResult.statements.length > 0) {
+              setActifsStatement(actifsResult.statements[0])
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing companies:', error)
+    } finally {
+      setLoading(false)
+    }
+
+    setTimeout(() => setNotification(null), 3000)
+  }
 
   // Save changes
   const handleSave = async (updatedLineItems: LineItem[]) => {
@@ -144,18 +237,15 @@ export default function PassifsPage() {
     setNotification(null)
 
     try {
-      const supabase = createClient()
+      const supabase = createClient() as any
 
-      // Use .select().single() so we get the updated row back
-      const { data: updatedRow, error } = await supabase
+      const { error } = await supabase
         .from('financial_statements')
         .update({
           line_items: updatedLineItems,
           updated_at: new Date().toISOString()
         })
         .eq('id', statement.id)
-        .select()
-        .single()
 
       if (error) {
         throw new Error(`Failed to save: ${error.message}`)
@@ -166,21 +256,18 @@ export default function PassifsPage() {
         message: '✅ Modifications enregistrées avec succès'
       })
 
-      // Update local state (use updated_at from DB if available)
       setStatement({
         ...statement,
-        line_items: updatedLineItems,
-        updated_at: updatedRow?.updated_at ?? new Date().toISOString()
+        line_items: updatedLineItems
       })
 
-      // Clear notification after 3 seconds
       setTimeout(() => setNotification(null), 3000)
 
     } catch (error: any) {
       console.error('Save error:', error)
       setNotification({
         type: 'error',
-        message: error?.message || 'Erreur lors de l\'enregistrement'
+        message: error.message || 'Erreur lors de l\'enregistrement'
       })
     } finally {
       setSaving(false)
@@ -197,52 +284,74 @@ export default function PassifsPage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Header */}
       <header className="border-b border-stone-200 bg-white sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => router.push('/dashboard')}
-              className="border-stone-200"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-light text-stone-900">
-                État des Passifs
-              </h1>
-              <p className="text-sm text-stone-600">
-                Visualisez et modifiez les postes de passifs
-              </p>
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => router.push('/dashboard')}
+                className="border-stone-200"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-light text-stone-900">
+                  État des Passifs
+                </h1>
+              </div>
             </div>
+
+            {selectedCompany && userId && (
+              <div className="flex items-center gap-2">
+                <ExportButton
+                  companyName={selectedCompany}
+                  userId={userId}
+                />
+                <RenameCompanyDialog
+                  currentName={selectedCompany}
+                  statementType="passifs"
+                  userId={userId}
+                  onSuccess={handleRenameSuccess}
+                />
+              </div>
+            )}
           </div>
 
-          {/* Company Selector */}
           {companies.length > 0 && (
-            <div className="flex items-center gap-3">
-              <Building2 className="w-5 h-5 text-stone-600" />
-              <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                <SelectTrigger className="w-[300px] border-stone-200">
-                  <SelectValue placeholder="Sélectionner une société" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company} value={company}>
-                      {company}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Building2 className="w-5 h-5 text-stone-600" />
+                <span className="text-lg font-medium text-stone-900">
+                  {selectedCompany}
+                </span>
+              </div>
+              
+              {companies.length > 1 && (
+                <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+                  <SelectTrigger className="w-[300px] border-stone-200">
+                    <SelectValue placeholder="Sélectionner une société" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company} value={company}>
+                        {company}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           )}
+          
+          <p className="text-sm text-stone-600 mt-2">
+            Visualisez et modifiez les postes de passifs
+          </p>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-        {/* Notification */}
         {notification && (
           <Alert
             variant={notification.type === 'error' ? 'destructive' : 'default'}
@@ -273,7 +382,16 @@ export default function PassifsPage() {
           </Alert>
         )}
 
-        {/* Statement Info Card */}
+        {/* Balance Checker - Only show if we have both actifs and passifs */}
+        {statement && actifsStatement && (
+          <BalanceChecker
+            periods={statement.periods}
+            actifsAmounts={actifsAmounts}
+            passifsAmounts={passifsAmounts}
+            companyName={selectedCompany}
+          />
+        )}
+
         {statement && (
           <Card className="border-stone-200 bg-white shadow-sm">
             <CardHeader className="border-b border-stone-100">
@@ -303,7 +421,6 @@ export default function PassifsPage() {
           </Card>
         )}
 
-        {/* Statement Table */}
         {statement ? (
           <Card className="border-stone-200 bg-white shadow-sm">
             <CardContent className="p-6">

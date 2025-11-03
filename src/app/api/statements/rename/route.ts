@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     console.log(`📝 Renaming company from "${old_company_name}" to "${new_company_name}" for user ${user_id}`)
 
     // Use service role client to bypass RLS
-    const supabase = createServiceClient()
+    const supabase = createServiceClient() as any
 
     // Check if new company name already exists
     const { data: existingStatements, error: checkError } = await supabase
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
       for (const statementToRename of statementsToRename) {
         const existingStatement = existingStatements.find(
-          s => s.statement_type === statementToRename.statement_type
+          (s: any) => s.statement_type === statementToRename.statement_type
         )
 
         if (existingStatement) {

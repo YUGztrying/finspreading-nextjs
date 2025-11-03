@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`📊 Exporting statements for company: ${company_name}`)
 
-    const supabase = createServiceClient()
+    const supabase = createServiceClient() as any
 
     // Fetch all statements for this company
     const { data: statements, error } = await supabase
