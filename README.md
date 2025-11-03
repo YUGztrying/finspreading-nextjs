@@ -333,16 +333,245 @@ Check `.env.local` and ensure all required variables are set
 - Service role key only used server-side
 - CORS configured for production domain
 
-## Future Enhancements
+## Coûts et Infrastructure
 
-- [ ] Batch processing for multiple files
-- [ ] Data validation rules engine
-- [ ] Historical trend analysis
-- [ ] Multi-currency support
-- [ ] Advanced search and filtering
-- [ ] Export to multiple formats (Word, PDF)
-- [ ] Collaboration features (comments, approvals)
-- [ ] Mobile app (React Native)
+### Architecture de l'Application
+
+**Important:** Les analystes IFC n'ont **AUCUN** besoin de compte Vercel. Ils se connectent directement via l'application web avec leur email/mot de passe (Supabase Auth).
+
+- **Vercel:** Hébergement de l'application (pour développeurs uniquement)
+- **Supabase:** Base de données, authentification, stockage (pour tous les analystes)
+- **Anthropic Claude:** Intelligence artificielle pour extraction de documents
+
+---
+
+### Coûts Actuels (Configuration Gratuite)
+
+L'application fonctionne actuellement avec les plans gratuits:
+
+#### Vercel (Hébergement)
+- **Plan actuel:** Hobby (Gratuit)
+- **Inclus:**
+  - 100 GB bandwidth/mois
+  - Déploiements illimités
+  - HTTPS automatique
+  - Utilisateurs illimités dans l'app
+- **Limitations:**
+  - 1 développeur seulement
+  - Support communautaire
+- **Coût:** $0/mois
+
+#### Supabase (Backend)
+- **Plan actuel:** Free Tier
+- **Inclus:**
+  - 500 MB base de données
+  - 1 GB stockage fichiers
+  - 50,000 utilisateurs actifs/mois
+  - 2 GB bandwidth
+  - Authentication illimitée
+- **Limitations:**
+  - Pause après 1 semaine d'inactivité
+  - Pas de backups automatiques
+- **Coût:** $0/mois
+
+#### Anthropic Claude API
+- **Pay-as-you-go**
+- **Coût par document PDF:**
+  - Claude Sonnet: ~$0.015 (précis)
+  - Claude Haiku: ~$0.004 (rapide, moins cher)
+- **Estimation:**
+  - 10 docs/mois: $0.15
+  - 50 docs/mois: $0.75
+  - 100 docs/mois: $1.50
+- **Coût:** $0-2/mois
+
+**COÛT TOTAL PHASE TEST: $0-2/mois** ✅
+
+---
+
+### Plans Professionnels (Production)
+
+#### Vercel Pro
+- **Coût:** $20/mois par développeur
+- **Nécessaire si:**
+  - Besoin de plusieurs développeurs
+  - Analytics détaillés requis
+  - Support technique prioritaire
+- **Note:** Les analystes n'ont PAS besoin de compte Vercel
+
+#### Supabase Pro
+- **Coût:** $25/mois (équipe illimitée)
+- **Inclus:**
+  - 8 GB base de données
+  - 100 GB stockage
+  - 250,000 utilisateurs actifs/mois
+  - 250 GB bandwidth
+  - **Pas de pause automatique**
+  - Backups quotidiens (7 jours)
+  - Support email
+  - 99.9% SLA
+- **Recommandé:** Dès la mise en production
+
+#### Supabase Team
+- **Coût:** $599/mois
+- **Pour:** Organisations avec >20 analystes actifs
+- **Inclus:**
+  - Tout du plan Pro
+  - Point-in-time recovery (2 semaines)
+  - Support prioritaire
+  - Read replicas
+  - Plus de ressources
+
+---
+
+### Estimation par Scénario d'Usage
+
+#### Scénario 1: Pilote (2-5 analystes, 30-50 documents/mois)
+| Service | Plan | Coût/mois | Notes |
+|---------|------|-----------|-------|
+| Vercel | Hobby | $0 | 1 développeur suffit |
+| Supabase | Free → Pro | $0 → $25 | Pro recommandé après test |
+| Anthropic | Usage | $3-5 | ~50 documents |
+| **TOTAL** | | **$3-30/mois** | Selon phase |
+
+**Recommandation:** Commencer gratuit, passer à Supabase Pro après validation.
+
+---
+
+#### Scénario 2: Production (5-15 analystes, 100-300 documents/mois)
+| Service | Plan | Coût/mois | Notes |
+|---------|------|-----------|-------|
+| Vercel | Pro | $20 | Support + analytics |
+| Supabase | Pro | $25 | 250k MAU suffisant |
+| Anthropic | Usage | $10-20 | 100-300 documents |
+| **TOTAL** | | **$55-65/mois** | |
+
+**Utilisateurs supportés:** Jusqu'à 15 analystes actifs quotidiennement
+
+---
+
+#### Scénario 3: Déploiement Complet (20+ analystes, 500+ documents/mois)
+| Service | Plan | Coût/mois | Notes |
+|---------|------|-----------|-------|
+| Vercel | Pro | $20-40 | 1-2 développeurs |
+| Supabase | Team | $599 | Plus de capacité |
+| Anthropic | Usage | $30-50 | 500+ documents |
+| **TOTAL** | | **$650-690/mois** | |
+
+**Utilisateurs supportés:** 50+ analystes simultanés
+
+---
+
+### Optimisations des Coûts
+
+#### 1. Anthropic Claude API
+**Stratégies:**
+- Utiliser **Claude Haiku** pour documents simples (-75% coût)
+- Implémenter un **cache** pour documents similaires
+- Batch processing pour grands volumes
+
+**Économies:** $5-15/mois selon volume
+
+#### 2. Supabase Storage
+**Stratégies:**
+- Compression automatique des PDFs
+- Suppression des fichiers après traitement
+- Archivage dans S3 après 30 jours
+
+**Économies:** Reste dans le plan Pro même à fort volume
+
+#### 3. Vercel Bandwidth
+**Stratégies:**
+- Optimisation des images
+- Minification du JavaScript
+- Edge caching
+
+**Économies:** Reste dans plan Pro sans surcoût
+
+---
+
+### Roadmap des Coûts
+
+#### Mois 1-2: Phase Pilote
+- ✅ Free tier partout
+- ✅ 2-3 analystes testeurs
+- ✅ Validation fonctionnelle
+- **Budget:** $0-5/mois
+
+#### Mois 3-6: Production Initiale
+- ✅ Supabase Pro: $25/mois
+- ✅ Vercel Hobby: $0/mois (suffit)
+- ✅ 5-10 analystes
+- **Budget:** $30-50/mois
+
+#### Mois 6-12: Scaling
+- ✅ Vercel Pro: $20/mois (si besoin support)
+- ✅ Supabase Pro: $25/mois
+- ✅ 10-20 analystes
+- **Budget:** $50-70/mois
+
+#### Mois 12+: Déploiement Complet
+- ✅ Évaluer Supabase Team si >20 analystes
+- ✅ Négocier contrat annuel Anthropic (-20%)
+- **Budget:** $600-700/mois (si >30 analystes)
+
+---
+
+### Questions Fréquentes
+
+#### Q: Combien d'analystes peuvent utiliser l'app?
+**R:** Avec Supabase Pro ($25/mois), jusqu'à 250,000 utilisateurs actifs/mois. Pour l'IFC, cela signifie facilement 50-100 analystes actifs quotidiennement.
+
+#### Q: Les analystes ont besoin d'un compte Vercel?
+**R:** **NON.** Seuls les développeurs ont besoin de Vercel. Les analystes se connectent via l'application web directement.
+
+#### Q: Peut-on commencer gratuitement?
+**R:** **OUI.** Tous les services ont un plan gratuit pour tester. Vous ne payez que quand vous passez en production.
+
+#### Q: Qu'arrive-t-il si on dépasse les limites du plan gratuit?
+**R:** L'application continue de fonctionner mais avec des limitations (pause après inactivité, moins de stockage). Mise à niveau recommandée avant d'atteindre les limites.
+
+#### Q: Peut-on migrer vers un self-hosting plus tard?
+**R:** **OUI.** Le code est open-source et peut être déployé sur n'importe quelle infrastructure (AWS, Azure, Google Cloud) si les coûts cloud deviennent trop élevés.
+
+---
+
+### Recommandation Finale IFC
+
+**Phase de Test (maintenant):**
+- Utiliser les plans gratuits
+- Budget: $0-5/mois
+- Durée: 1-2 mois
+
+**Mise en Production:**
+- Supabase Pro: $25/mois (essentiel)
+- Vercel Hobby: $0/mois (suffisant)
+- Budget: $30-50/mois
+- Pour: 5-15 analystes
+
+**Total investi première année:** ~$400-600
+**Économie vs Base44:** ~$XXX (à calculer avec coût Base44)
+**Gains productivité:** Inestimables
+
+---
+
+### Contact & Négociations Entreprise
+
+Pour des remises ONG/Organisations Internationales:
+
+**Supabase:**
+- Email: sales@supabase.io
+- Mentionner: IFC (World Bank Group)
+- Possibles: -10 à -20% sur plans annuels
+
+**Anthropic:**
+- Email: sales@anthropic.com
+- Mentionner: Development finance use case
+- Possibles: Volume discounts si >1000 docs/mois
+
+**Vercel:**
+- Email: sales@vercel.com
+- Généralement pas de remises pour plans Pro
 
 ## License
 
