@@ -49,8 +49,13 @@ CREATE TABLE IF NOT EXISTS camels_analyses (
 CREATE INDEX IF NOT EXISTS idx_camels_user_company
   ON camels_analyses(user_id, company_name);
 
--- RLS policies
+-- RLS policies (idempotent — safe to re-run)
 ALTER TABLE camels_analyses ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own analyses"   ON camels_analyses;
+DROP POLICY IF EXISTS "Users can insert own analyses" ON camels_analyses;
+DROP POLICY IF EXISTS "Users can update own analyses" ON camels_analyses;
+DROP POLICY IF EXISTS "Users can delete own analyses" ON camels_analyses;
 
 CREATE POLICY "Users can view own analyses"
   ON camels_analyses FOR SELECT
@@ -68,7 +73,7 @@ CREATE POLICY "Users can delete own analyses"
   ON camels_analyses FOR DELETE
   USING (auth.uid() = user_id);
 
--- Auto-update timestamp trigger
+-- Auto-update timestamp trigger (idempotent via CREATE OR REPLACE + DROP IF EXISTS)
 CREATE OR REPLACE FUNCTION update_camels_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -76,6 +81,8 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS camels_analyses_updated_at ON camels_analyses;
 
 CREATE TRIGGER camels_analyses_updated_at
   BEFORE UPDATE ON camels_analyses
