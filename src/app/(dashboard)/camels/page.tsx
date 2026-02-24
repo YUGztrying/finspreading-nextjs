@@ -69,10 +69,8 @@ interface AnalysisResponse {
   key_metrics: Record<string, number | null>
 }
 
-interface Overrides {
-  car_override: number | null
-  npl_amount_override: number | null
-}
+// Map of period → { car_override, npl_amount_override }
+type Overrides = Record<string, { car_override: number | null; npl_amount_override: number | null }>
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
@@ -84,7 +82,7 @@ export default function CAMELSPage() {
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const [userId, setUserId] = useState<string>('')
   const [result, setResult] = useState<AnalysisResponse | null>(null)
-  const [overrides, setOverrides] = useState<Overrides>({ car_override: null, npl_amount_override: null })
+  const [overrides, setOverrides] = useState<Overrides>({})
   const [error, setError] = useState<string | null>(null)
 
   // Fetch user and companies on mount
@@ -119,14 +117,14 @@ export default function CAMELSPage() {
     fetchData()
   }, [router])
 
-  // Run CAMELS analysis — then immediately load any saved overrides
+  // Run CAMELS analysis — then immediately load any saved overrides (all periods)
   const runAnalysis = async () => {
     if (!selectedCompany || !userId) return
 
     setAnalyzing(true)
     setError(null)
     setResult(null)
-    setOverrides({ car_override: null, npl_amount_override: null })
+    setOverrides({})
 
     try {
       const response = await fetch('/api/camels/analyze', {
@@ -143,20 +141,13 @@ export default function CAMELSPage() {
       const data: AnalysisResponse = await response.json()
       setResult(data)
 
-      // Load any analyst overrides saved previously for this company
-      const latestPeriod = data.periods[data.periods.length - 1]
+      // Load analyst overrides for all periods at once
       const ovResp = await fetch(
         `/api/camels/overrides?user_id=${encodeURIComponent(userId)}&company_name=${encodeURIComponent(selectedCompany)}`
       )
       if (ovResp.ok) {
         const ovData = await ovResp.json()
-        const periodOverrides = ovData.overrides?.[latestPeriod]
-        if (periodOverrides) {
-          setOverrides({
-            car_override: periodOverrides.car_override ?? null,
-            npl_amount_override: periodOverrides.npl_amount_override ?? null,
-          })
-        }
+        setOverrides(ovData.overrides ?? {})
       }
     } catch (err: any) {
       setError(err.message)
@@ -165,16 +156,19 @@ export default function CAMELSPage() {
     }
   }
 
-  // Save one override field and update local state immediately
+  // Save one override field for a specific period and update local state immediately
   const saveOverride = async (
+    period: string,
     field: 'car_override' | 'npl_amount_override',
     value: number | null
   ) => {
     if (!result || !userId) return
-    const latestPeriod = result.periods[result.periods.length - 1]
 
     // Optimistic update
-    setOverrides(prev => ({ ...prev, [field]: value }))
+    setOverrides(prev => ({
+      ...prev,
+      [period]: { ...(prev[period] ?? { car_override: null, npl_amount_override: null }), [field]: value },
+    }))
 
     await fetch('/api/camels/overrides', {
       method: 'POST',
@@ -182,7 +176,7 @@ export default function CAMELSPage() {
       body: JSON.stringify({
         user_id: userId,
         company_name: result.company_name,
-        period: latestPeriod,
+        period,
         field,
         value,
       }),
@@ -197,41 +191,47 @@ export default function CAMELSPage() {
     )
   }
 
-  // Build solvency rows with CAR editable
+  // ─── Build solvency rows — CAR editable for every period ────────────────────
   const solvencyRows = result
     ? result.ratio_tables.solvency.map((row, i) => {
         if (i === 0) {
-          // CAR row — analyst-provided
           return {
             ...row,
             editable: true,
-            overrideValue: overrides.car_override,
-            onSave: (v: number | null) => saveOverride('car_override', v),
+            overrideValues: result.periods.map(p => overrides[p]?.car_override ?? null),
+            onSave: async (j: number, v: number | null) =>
+              saveOverride(result.periods[j], 'car_override', v),
           }
         }
         return row
       })
     : []
 
-  // Derive NPL Ratio and Coverage Ratio from analyst-provided NPL Amount
-  const grossLoans = result?.key_metrics?.gross_loans ?? null
-  const loanLossProvisions = result?.key_metrics?.loan_loss_provisions ?? null
-  const nplAmount = overrides.npl_amount_override
+  // ─── Derive NPL Ratio and Coverage Ratio per period from analyst NPL Amount ─
+  // Use the balance sheet rows (which cover every period) for gross loans and LLP.
+  const grossLoansRow = result?.financial_summary.balance_sheet.find(r => r.key === 'gross_loans')
+  const llpRow = result?.financial_summary.balance_sheet.find(r => r.key === 'loan_loss_provisions')
 
-  const effectiveNplRatio =
-    nplAmount != null && grossLoans != null && grossLoans !== 0
-      ? nplAmount / grossLoans
-      : null
+  const derivedNplRatios: (number | null)[] = result
+    ? result.periods.map((p, j) => {
+        const nplAmt = overrides[p]?.npl_amount_override ?? null
+        const gl = grossLoansRow?.values[j] ?? null
+        return nplAmt != null && gl != null && gl !== 0 ? nplAmt / gl : null
+      })
+    : []
 
-  const effectiveCoverageRatio =
-    nplAmount != null && nplAmount !== 0 && loanLossProvisions != null
-      ? Math.abs(loanLossProvisions) / nplAmount
-      : null
+  const derivedCoverageRatios: (number | null)[] = result
+    ? result.periods.map((p, j) => {
+        const nplAmt = overrides[p]?.npl_amount_override ?? null
+        const llp = llpRow?.values[j] ?? null
+        return nplAmt != null && nplAmt !== 0 && llp != null ? Math.abs(llp) / nplAmt : null
+      })
+    : []
 
-  // Build asset quality rows:
-  //   1. NPL Amount (editable — analyst enters absolute value from footnotes)
-  //   2. NPL Ratio  (derived from NPL Amount ÷ Gross Loans, shown in blue)
-  //   3. Coverage Ratio (derived from LLP ÷ NPL Amount, shown in blue)
+  // ─── Build asset quality rows ────────────────────────────────────────────────
+  //   1. NPL Amount  — editable, analyst enters absolute value per period
+  //   2. NPL Ratio   — derived (blue) where NPL Amount is set, computed otherwise
+  //   3. Coverage    — derived (blue) where NPL Amount is set, computed otherwise
   const assetQualityRows = result
     ? [
         {
@@ -239,12 +239,13 @@ export default function CAMELSPage() {
           values: Array(result.periods.length).fill(null) as (number | null)[],
           format: 'number' as const,
           editable: true,
-          overrideValue: nplAmount,
-          onSave: (v: number | null) => saveOverride('npl_amount_override', v),
+          overrideValues: result.periods.map(p => overrides[p]?.npl_amount_override ?? null),
+          onSave: async (j: number, v: number | null) =>
+            saveOverride(result.periods[j], 'npl_amount_override', v),
         },
         ...result.ratio_tables.asset_quality.map((row, i) => {
-          if (i === 0) return { ...row, latestDerivedValue: effectiveNplRatio }
-          if (i === 1) return { ...row, latestDerivedValue: effectiveCoverageRatio }
+          if (i === 0) return { ...row, derivedValues: derivedNplRatios }
+          if (i === 1) return { ...row, derivedValues: derivedCoverageRatios }
           return row
         }),
       ]
@@ -359,20 +360,20 @@ export default function CAMELSPage() {
               rows={result.growth_evolution.map(r => ({ label: r.label, values: r.values, format: r.format }))}
             />
 
-            {/* Ratio tables — CAR and NPL Ratio are editable */}
+            {/* Ratio tables — CAR and NPL Amount editable for every period */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div>
                 <RatioTable title="Solvency" periodLabels={result.period_labels} rows={solvencyRows} />
                 <p className="mt-1.5 text-xs text-stone-400 px-1">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-1 align-middle" />
-                  CAR — click the latest value to enter the regulatory figure from the bank's disclosure.
+                  CAR — click any value to enter the regulatory figure from the bank&apos;s disclosure.
                 </p>
               </div>
               <div>
                 <RatioTable title="Asset Quality" periodLabels={result.period_labels} rows={assetQualityRows} />
                 <p className="mt-1.5 text-xs text-stone-400 px-1">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-1 align-middle" />
-                  Enter the NPL Amount from the bank&apos;s footnotes — NPL Ratio and Coverage Ratio update automatically.
+                  Enter NPL Amount per period from the bank&apos;s footnotes — NPL Ratio and Coverage Ratio update automatically.
                 </p>
               </div>
               <RatioTable title="Profitability" periodLabels={result.period_labels} rows={result.ratio_tables.profitability} />

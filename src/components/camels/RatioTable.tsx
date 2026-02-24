@@ -10,12 +10,12 @@ export interface RatioTableRow {
   format: 'percent' | 'number' | 'multiple'
   bold?: boolean
   cagr?: number | null
-  // Inline override editing (latest period only)
+  // Per-period inline override editing
   editable?: boolean
-  overrideValue?: number | null   // analyst-provided value (stored as-is, matches format)
-  onSave?: (value: number | null) => Promise<void>
-  // Read-only derived value shown in blue on the latest period cell (non-editable)
-  latestDerivedValue?: number | null
+  overrideValues?: (number | null)[]  // parallel to values[], one override per period
+  onSave?: (periodIndex: number, value: number | null) => Promise<void>
+  // Per-period read-only derived values shown in blue (non-editable)
+  derivedValues?: (number | null)[]   // parallel to values[], one derived value per period
 }
 
 interface RatioTableProps {
@@ -45,18 +45,28 @@ function formatCagr(value: number | null | undefined): string {
 
 // ─── Editable cell ───────────────────────────────────────────────────────────
 
-function EditableCell({ row, computedValue }: { row: RatioTableRow; computedValue: number | null }) {
+function EditableCell({
+  format,
+  computedValue,
+  overrideValue,
+  onSave,
+}: {
+  format: 'percent' | 'number' | 'multiple'
+  computedValue: number | null
+  overrideValue: number | null | undefined
+  onSave: (value: number | null) => Promise<void>
+}) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const isPercent = row.format === 'percent'
-  const isOverride = row.overrideValue != null
-  const displayValue = isOverride ? row.overrideValue : computedValue
+  const isPercent = format === 'percent'
+  const hasOverride = overrideValue != null
+  const displayValue = hasOverride ? overrideValue : computedValue
 
   const startEdit = () => {
-    const current = row.overrideValue ?? computedValue
+    const current = overrideValue ?? computedValue
     if (isPercent) {
       setDraft(current != null ? (current * 100).toFixed(2) : '')
     } else {
@@ -68,20 +78,20 @@ function EditableCell({ row, computedValue }: { row: RatioTableRow; computedValu
 
   const save = async () => {
     const trimmed = draft.trim()
-    let decimalValue: number | null
+    let finalValue: number | null
     if (trimmed === '') {
-      decimalValue = null
+      finalValue = null
     } else {
       const parsed = parseFloat(trimmed)
       if (isNaN(parsed)) {
         setEditing(false)
         return
       }
-      decimalValue = isPercent ? parsed / 100 : parsed
+      finalValue = isPercent ? parsed / 100 : parsed
     }
     setSaving(true)
     setEditing(false)
-    await row.onSave?.(decimalValue)
+    await onSave(finalValue)
     setSaving(false)
   }
 
@@ -112,20 +122,20 @@ function EditableCell({ row, computedValue }: { row: RatioTableRow; computedValu
     <div
       className="flex items-center justify-end gap-1.5 cursor-text group"
       onClick={startEdit}
-      title={isOverride ? 'Analyst value — click to edit' : 'Click to enter analyst value'}
+      title={hasOverride ? 'Analyst value — click to edit' : 'Click to enter analyst value'}
     >
       {saving && <Loader2 className="w-3 h-3 animate-spin text-stone-400 flex-shrink-0" />}
-      {isOverride && !saving && (
+      {hasOverride && !saving && (
         <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" title="Analyst value" />
       )}
       <span
         className={`font-mono tabular-nums transition-colors ${
-          isOverride
+          hasOverride
             ? 'text-blue-700 font-medium'
             : 'text-stone-400 group-hover:text-stone-600'
         } group-hover:border-b group-hover:border-dashed group-hover:border-stone-300`}
       >
-        {displayValue != null ? formatCell(displayValue, row.format) : (
+        {displayValue != null ? formatCell(displayValue, format) : (
           <span className="text-xs">+ add</span>
         )}
       </span>
@@ -136,9 +146,6 @@ function EditableCell({ row, computedValue }: { row: RatioTableRow; computedValu
 // ─── Table ───────────────────────────────────────────────────────────────────
 
 export default function RatioTable({ title, periodLabels, rows, showCagr = false }: RatioTableProps) {
-  // Latest period is always the last column
-  const latestIdx = periodLabels.length - 1
-
   return (
     <div className="border border-stone-200 rounded-xl bg-white overflow-hidden shadow-sm">
       <div className="px-5 py-3 bg-stone-800">
@@ -151,7 +158,7 @@ export default function RatioTable({ title, periodLabels, rows, showCagr = false
               <th className="text-left px-5 py-2.5 text-stone-400 font-medium text-xs uppercase tracking-wide">
                 Metric
               </th>
-              {periodLabels.map((p, i) => (
+              {periodLabels.map(p => (
                 <th
                   key={p}
                   className="text-right px-4 py-2.5 text-stone-400 font-medium text-xs uppercase tracking-wide"
@@ -179,27 +186,32 @@ export default function RatioTable({ title, periodLabels, rows, showCagr = false
                 </td>
 
                 {row.values.map((v, j) => {
-                  const isLatest = j === latestIdx
-                  const isEditable = row.editable && isLatest
-
                   // Read-only derived value (blue dot, non-editable)
-                  if (isLatest && row.latestDerivedValue != null) {
+                  const derived = row.derivedValues?.[j]
+                  if (derived != null) {
                     return (
                       <td key={j} className="text-right px-4 py-2.5">
                         <div className="flex items-center justify-end gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" title="Derived from analyst NPL Amount" />
                           <span className="font-mono tabular-nums text-blue-700 font-medium">
-                            {formatCell(row.latestDerivedValue, row.format)}
+                            {formatCell(derived, row.format)}
                           </span>
                         </div>
                       </td>
                     )
                   }
 
-                  if (isEditable) {
+                  // Editable cell
+                  if (row.editable && row.onSave) {
+                    const overrideValue = row.overrideValues?.[j] ?? null
                     return (
                       <td key={j} className="text-right px-4 py-2.5">
-                        <EditableCell row={row} computedValue={v} />
+                        <EditableCell
+                          format={row.format}
+                          computedValue={v}
+                          overrideValue={overrideValue}
+                          onSave={value => row.onSave!(j, value)}
+                        />
                       </td>
                     )
                   }
