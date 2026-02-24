@@ -312,7 +312,7 @@ export async function POST(request: NextRequest) {
 
       for (const comp of ratingComponents) {
         const vals = camResults.map(r => {
-          const rat = r.analysis.ratings[comp.key]
+          const rat = r.analysis.ratings[comp.key as keyof typeof r.analysis.ratings]
           return (rat as any)?.rating ?? (rat as any)?.composite_rating ?? null
         })
         const latestVal = vals[vals.length - 1]
