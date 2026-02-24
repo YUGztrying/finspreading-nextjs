@@ -267,6 +267,7 @@ export async function POST(request: NextRequest) {
     if (camPeriods.length > 0) {
       const camSheet = workbook.addWorksheet('CAMELS')
 
+      // ── Compute analysis results ──
       const camResults: Array<{
         period: string
         data: ReturnType<typeof extractFinancialData>
@@ -281,22 +282,80 @@ export async function POST(request: NextRequest) {
         prevData = data
       }
 
+      // ── Fetch analyst overrides (CAR + NPL Amount) — same source as CAMELS page ──
+      type OverrideMap = Record<string, { car_override: number | null; npl_amount_override: number | null }>
+      const overrides: OverrideMap = {}
+      const { data: ovRows } = await supabase
+        .from('camels_analyses')
+        .select('period, car_override, npl_amount_override')
+        .eq('user_id', user_id)
+        .eq('company_name', company_name)
+      for (const row of ovRows ?? []) {
+        overrides[row.period] = {
+          car_override: row.car_override ?? null,
+          npl_amount_override: row.npl_amount_override ?? null,
+        }
+      }
+
+      // ── Derive NPL Ratio and Coverage Ratio from analyst NPL Amount (same logic as CAMELS page) ──
+      const derivedNplRatios: (number | null)[] = camResults.map((r, j) => {
+        const nplAmt = overrides[r.period]?.npl_amount_override ?? null
+        const gl = r.data.gross_loans ?? null
+        return nplAmt != null && gl != null && gl !== 0 ? nplAmt / gl : null
+      })
+
+      const derivedCoverageRatios: (number | null)[] = camResults.map((r, j) => {
+        const nplAmt = overrides[r.period]?.npl_amount_override ?? null
+        const llp = r.data.loan_loss_provisions ?? null
+        return nplAmt != null && nplAmt !== 0 && llp != null ? Math.abs(llp) / nplAmt : null
+      })
+
       const camLabels = camPeriods.map(fmtPeriod)
+      const nCols = camPeriods.length  // number of period columns
+
+      // ── Helpers ──
+      const mergeFullRow = (r: ExcelJS.Row) =>
+        camSheet.mergeCells(`A${r.number}:${String.fromCharCode(65 + nCols)}${r.number}`)
+
+      function addPctRow(label: string, vals: (number | null)[], bold = false) {
+        const r = camSheet.addRow([label, ...vals])
+        if (bold) styleTotal(r)
+        for (let i = 2; i <= nCols + 1; i++) r.getCell(i).numFmt = '0.0%'
+        return r
+      }
+
+      function addNumRow(label: string, vals: (number | null)[], bold = false) {
+        const r = camSheet.addRow([label, ...vals])
+        if (bold) styleTotal(r)
+        for (let i = 2; i <= nCols + 1; i++) r.getCell(i).numFmt = '#,##0'
+        return r
+      }
+
+      function sectionHeader(label: string, bg: string) {
+        const r = camSheet.addRow([label])
+        styleHeader(r, bg)
+        mergeFullRow(r)
+        return r
+      }
+
+      function columnHeader(label = 'Ratio') {
+        const r = camSheet.addRow([label, ...camLabels])
+        styleHeader(r, C.stone100)
+        r.font = { bold: true, color: { argb: '44403C' } }
+        return r
+      }
 
       // ── Title ──
       const ct = camSheet.addRow([`CAMELS ANALYSIS — ${company_name}`])
       styleHeader(ct, C.blue)
-      camSheet.mergeCells(`A1:${String.fromCharCode(65 + camPeriods.length)}1`)
+      mergeFullRow(ct)
       ct.height = 28
       ct.font = { bold: true, size: 13, color: { argb: C.white } }
       camSheet.addRow(['Institution type:', institutionType])
       camSheet.addRow([])
 
-      // ── Composite + component ratings ──
-      const ratingsTitle = camSheet.addRow(['CAMELS RATINGS'])
-      styleHeader(ratingsTitle, C.amber)
-      camSheet.mergeCells(`A${ratingsTitle.number}:${String.fromCharCode(65 + camPeriods.length)}${ratingsTitle.number}`)
-
+      // ── CAMELS Ratings ──
+      sectionHeader('CAMELS RATINGS', C.amber)
       const colHdr = camSheet.addRow(['Component', ...camLabels, 'Latest'])
       styleHeader(colHdr, C.stone100)
       colHdr.font = { bold: true, color: { argb: '44403C' } }
@@ -318,9 +377,7 @@ export async function POST(request: NextRequest) {
         const latestVal = vals[vals.length - 1]
         const r = camSheet.addRow([comp.label, ...vals, latestVal])
         if (comp.bold) styleTotal(r)
-
-        // Colour each rating cell
-        vals.forEach((v, i) => {
+        ;[...vals, latestVal].forEach((v, i) => {
           const cell = r.getCell(i + 2)
           if (v != null) {
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ratingColor(v) } }
@@ -328,103 +385,100 @@ export async function POST(request: NextRequest) {
           }
           cell.alignment = { horizontal: 'center' }
         })
-        const lc = r.getCell(vals.length + 2)
-        if (latestVal != null) {
-          lc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ratingColor(latestVal) } }
-          lc.font = { bold: true, color: { argb: C.white } }
-        }
-        lc.alignment = { horizontal: 'center' }
       }
       camSheet.addRow([])
 
-      // ── Key ratios ──
-      const ratioGroups = [
-        {
-          title: 'SOLVENCY',
-          color: C.red,
-          rows: [
-            { label: 'Equity / Assets',  key: 'equity_assets',   fmt: 'pct' },
-            { label: 'Debt / Assets',    key: 'debt_assets',     fmt: 'pct' },
-          ],
-        },
-        {
-          title: 'ASSET QUALITY',
-          color: C.amber,
-          rows: [
-            { label: 'NPL Ratio',        key: 'npl_ratio',        fmt: 'pct' },
-            { label: 'Coverage Ratio',   key: 'coverage_ratio',   fmt: 'pct' },
-          ],
-        },
-        {
-          title: 'PROFITABILITY',
-          color: C.emerald,
-          rows: [
-            { label: 'ROAA',                  key: 'roaa',            fmt: 'pct' },
-            { label: 'ROAE',                  key: 'roae',            fmt: 'pct' },
-            { label: 'Net Interest Margin',   key: 'net_interest_margin', fmt: 'pct' },
-            { label: 'Cost-to-Income',        key: 'cost_to_income',  fmt: 'pct' },
-          ],
-        },
-        {
-          title: 'LIQUIDITY',
-          color: C.sky,
-          rows: [
-            { label: 'Gross Loans / Deposits',         key: 'gross_loans_deposits',          fmt: 'pct' },
-            { label: 'Liquid Assets / Total Assets',   key: 'liquid_assets_total_assets',    fmt: 'pct' },
-          ],
-        },
+      // ── Solvency — matches app: CAR (override or fallback), Equity/Assets ──
+      sectionHeader('SOLVENCY', C.red)
+      columnHeader()
+      addPctRow(
+        'CAR (Capital Adequacy Ratio)',
+        camResults.map((r, j) => overrides[r.period]?.car_override ?? r.analysis.ratios.equity_assets ?? null)
+      )
+      addPctRow('Equity / Assets', camResults.map(r => r.analysis.ratios.equity_assets ?? null))
+      camSheet.addRow([])
+
+      // ── Asset Quality — matches app: NPL Amount, NPL Ratio (derived), Coverage (derived) ──
+      sectionHeader('ASSET QUALITY', C.amber)
+      columnHeader()
+      addNumRow(
+        'NPL Amount (analyst input)',
+        camResults.map(r => overrides[r.period]?.npl_amount_override ?? null)
+      )
+      addPctRow(
+        'NPL Ratio',
+        camResults.map((r, j) => derivedNplRatios[j] ?? r.analysis.ratios.npl_ratio ?? null)
+      )
+      addPctRow(
+        'Coverage Ratio',
+        camResults.map((r, j) => derivedCoverageRatios[j] ?? r.analysis.ratios.coverage_ratio ?? null)
+      )
+      camSheet.addRow([])
+
+      // ── Profitability ──
+      sectionHeader('PROFITABILITY', C.emerald)
+      columnHeader()
+      addPctRow('ROAA', camResults.map(r => r.analysis.ratios.roaa ?? null))
+      addPctRow('ROAE', camResults.map(r => r.analysis.ratios.roae ?? null))
+      addPctRow('Net Interest Margin', camResults.map(r => r.analysis.ratios.net_interest_margin ?? null))
+      addPctRow('Cost-to-Income Ratio', camResults.map(r => r.analysis.ratios.cost_to_income ?? null))
+      camSheet.addRow([])
+
+      // ── Liquidity ──
+      sectionHeader('LIQUIDITY', C.sky)
+      columnHeader()
+      addPctRow('Gross Loans / Deposits', camResults.map(r => r.analysis.ratios.gross_loans_deposits ?? null))
+      addPctRow('Liquid Assets / Total Assets', camResults.map(r => r.analysis.ratios.liquid_assets_total_assets ?? null))
+      camSheet.addRow([])
+
+      // ── Growth Evolution — matches app table ──
+      sectionHeader('GROWTH EVOLUTION', 'FF64748B')
+      columnHeader()
+      const growthKeys = [
+        { label: 'Total Asset Growth',  key: 'total_assets'   },
+        { label: 'Gross Loan Growth',   key: 'gross_loans'    },
+        { label: 'Deposit Growth',      key: 'total_deposits' },
+        { label: 'Equity Growth',       key: 'total_equity'   },
       ]
-
-      for (const group of ratioGroups) {
-        const gt = camSheet.addRow([group.title])
-        styleHeader(gt, group.color)
-        camSheet.mergeCells(`A${gt.number}:${String.fromCharCode(65 + camPeriods.length + 1)}${gt.number}`)
-
-        const gh = camSheet.addRow(['Ratio', ...camLabels])
-        styleHeader(gh, C.stone100)
-        gh.font = { bold: true, color: { argb: '44403C' } }
-
-        for (const row of group.rows) {
-          const vals = camResults.map(r => r.analysis.ratios[row.key as keyof typeof r.analysis.ratios] ?? null)
-          const r = camSheet.addRow([row.label, ...vals])
-          // Format as percentage
-          for (let i = 2; i <= camPeriods.length + 1; i++) {
-            camSheet.getRow(r.number).getCell(i).numFmt = '0.0%'
-          }
-        }
-        camSheet.addRow([])
+      for (const gk of growthKeys) {
+        const vals = camResults.map((r, i) => {
+          if (i === 0) return null
+          const prev = camResults[i - 1].data[gk.key as keyof typeof r.data] as number ?? 0
+          const curr = r.data[gk.key as keyof typeof r.data] as number ?? 0
+          return prev === 0 ? null : (curr - prev) / Math.abs(prev)
+        })
+        addPctRow(gk.label, vals)
       }
+      camSheet.addRow([])
 
-      // ── Financial summary ──
-      const fsTitle = camSheet.addRow(['FINANCIAL SUMMARY'])
-      styleHeader(fsTitle, C.blue)
-      camSheet.mergeCells(`A${fsTitle.number}:${String.fromCharCode(65 + camPeriods.length + 1)}${fsTitle.number}`)
+      // ── Financial Summary — full rows matching the CAMELS page ──
+      sectionHeader('FINANCIAL SUMMARY', C.blue)
 
-      const bsTitle = camSheet.addRow(['Balance Sheet', ...camLabels])
-      styleHeader(bsTitle, C.stone100)
-      bsTitle.font = { bold: true, color: { argb: '44403C' } }
-
-      const bsKeys = [
-        { label: 'Total Assets',          key: 'total_assets',          bold: true  },
-        { label: 'Gross Loans',           key: 'gross_loans',           bold: false },
-        { label: 'Customer Deposits',     key: 'total_deposits',        bold: false },
-        { label: "Shareholders' Equity",  key: 'total_equity',          bold: true  },
-        { label: 'Loan Loss Provisions',  key: 'loan_loss_provisions',  bold: false },
+      columnHeader('Balance Sheet')
+      const bsKeys: Array<{ label: string; key: string; bold: boolean; special?: string }> = [
+        { label: 'Total Assets',           key: 'total_assets',          bold: true  },
+        { label: 'Total Liabilities',      key: 'total_liabilities',     bold: true  },
+        { label: "Shareholders' Equity",   key: 'total_equity',          bold: true  },
+        { label: 'Cash & Bank Deposits',   key: 'cash_and_equivalents',  bold: false },
+        { label: 'Investment Securities',  key: 'investment_securities', bold: false },
+        { label: 'Gross Loans',            key: 'gross_loans',           bold: false },
+        { label: 'Loan Loss Provisions',   key: 'loan_loss_provisions',  bold: false },
+        { label: 'Customer Deposits',      key: 'total_deposits',        bold: false },
+        { label: 'Borrowings',             key: '_borrowings',           bold: false, special: 'borrowings' },
+        { label: 'Subordinated Debt',      key: 'subordinated_debt',     bold: false },
       ]
       for (const k of bsKeys) {
-        const vals = camResults.map(r => r.data[k.key as keyof typeof r.data] ?? 0)
-        const r = camSheet.addRow([k.label, ...vals])
-        if (k.bold) styleTotal(r)
-        for (let i = 2; i <= camPeriods.length + 1; i++) {
-          camSheet.getRow(r.number).getCell(i).numFmt = '#,##0'
-        }
+        const vals = camResults.map(r => {
+          if (k.special === 'borrowings') {
+            return ((r.data.short_term_borrowings ?? 0) + (r.data.long_term_debt ?? 0)) || null
+          }
+          return r.data[k.key as keyof typeof r.data] as number ?? null
+        })
+        addNumRow(k.label, vals, k.bold)
       }
       camSheet.addRow([])
 
-      const isTitle = camSheet.addRow(['Income Statement', ...camLabels])
-      styleHeader(isTitle, C.stone100)
-      isTitle.font = { bold: true, color: { argb: '44403C' } }
-
+      columnHeader('Income Statement')
       const isKeys = [
         { label: 'Net Interest Income', key: 'net_interest_income', bold: false },
         { label: 'Non-Interest Income', key: 'non_interest_income', bold: false },
@@ -433,17 +487,13 @@ export async function POST(request: NextRequest) {
         { label: 'Net Profit',          key: 'net_income',          bold: true  },
       ]
       for (const k of isKeys) {
-        const vals = camResults.map(r => r.data[k.key as keyof typeof r.data] ?? 0)
-        const r = camSheet.addRow([k.label, ...vals])
-        if (k.bold) styleTotal(r)
-        for (let i = 2; i <= camPeriods.length + 1; i++) {
-          camSheet.getRow(r.number).getCell(i).numFmt = '#,##0'
-        }
+        const vals = camResults.map(r => r.data[k.key as keyof typeof r.data] as number ?? null)
+        addNumRow(k.label, vals, k.bold)
       }
 
-      // Column widths
+      // ── Column widths ──
       camSheet.getColumn(1).width = 38
-      for (let i = 2; i <= camPeriods.length + 2; i++) {
+      for (let i = 2; i <= nCols + 2; i++) {
         camSheet.getColumn(i).width = 14
         camSheet.getColumn(i).alignment = { horizontal: 'right' }
       }
