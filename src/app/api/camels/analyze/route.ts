@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { extractFinancialData, getAllPeriods } from '@/lib/camels/field-mapper'
 import { runFullAnalysis } from '@/lib/camels/calculator'
+import { generateNarrative } from '@/lib/camels/narrative-generator'
 import { FinancialData } from '@/lib/camels/types'
 import { LineItem } from '@/types/database.types'
 
@@ -78,8 +79,47 @@ export async function POST(request: NextRequest) {
       prevData = data
     }
 
+    // Build period labels
+    const periodLabels = periods.map(p => {
+      const d = new Date(p)
+      return `FY${String(d.getFullYear()).slice(-2)}`
+    })
+
+    const latestResult = results[results.length - 1]
+
+    // Try AI narrative (Layer 2) — falls back to deterministic (Layer 1) if unavailable
+    let analysisText = latestResult.analysis.analysis
+    const narrative = await generateNarrative({
+      companyName: company_name,
+      institutionType: institutionType,
+      periods,
+      periodLabels,
+      periodData: results.map((r, i) => ({
+        period: r.period,
+        label: periodLabels[i],
+        data: r.data,
+      })),
+      periodRatios: results.map((r, i) => ({
+        period: r.period,
+        label: periodLabels[i],
+        ratios: r.analysis.ratios,
+      })),
+      ratings: latestResult.analysis.ratings as any,
+    })
+
+    if (narrative) {
+      console.log('CAMELS: Using AI-generated narrative')
+      analysisText = narrative
+    } else {
+      console.log('CAMELS: Using deterministic analysis paragraphs')
+    }
+
     // Save each period's analysis to the database (upsert)
     for (const { period, analysis } of results) {
+      // For the latest period, use the (possibly AI-enhanced) analysis text
+      const isLatest = period === results[results.length - 1].period
+      const periodAnalysis = isLatest ? analysisText : analysis.analysis
+
       const row = {
         user_id,
         company_name,
@@ -105,12 +145,12 @@ export async function POST(request: NextRequest) {
         liquidity_rating: analysis.ratings.liquidity,
         composite_rating: analysis.ratings.composite,
         // Analysis text
-        analysis_capital: analysis.analysis.capital,
-        analysis_asset_quality: analysis.analysis.asset_quality,
-        analysis_management: analysis.analysis.management,
-        analysis_earnings: analysis.analysis.earnings,
-        analysis_liquidity: analysis.analysis.liquidity,
-        analysis_composite: analysis.analysis.composite,
+        analysis_capital: periodAnalysis.capital,
+        analysis_asset_quality: periodAnalysis.asset_quality,
+        analysis_management: periodAnalysis.management,
+        analysis_earnings: periodAnalysis.earnings,
+        analysis_liquidity: periodAnalysis.liquidity,
+        analysis_composite: periodAnalysis.composite,
       }
 
       const { error: upsertError } = await supabase
@@ -121,13 +161,6 @@ export async function POST(request: NextRequest) {
         console.error(`Failed to save analysis for period ${period}:`, upsertError)
       }
     }
-
-    // Build response
-    const latestResult = results[results.length - 1]
-    const periodLabels = periods.map(p => {
-      const d = new Date(p)
-      return `FY${String(d.getFullYear()).slice(-2)}`
-    })
 
     // Build financial summary
     const balanceSheetKeys = [
@@ -197,7 +230,7 @@ export async function POST(request: NextRequest) {
         liquidity: buildRatioTable(ratioKeys.liquidity),
       },
       ratings: latestResult.analysis.ratings,
-      analysis: latestResult.analysis.analysis,
+      analysis: analysisText,
       key_metrics: latestResult.data,
     })
   } catch (error: any) {

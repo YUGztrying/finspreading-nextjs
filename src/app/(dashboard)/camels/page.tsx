@@ -320,12 +320,30 @@ export default function CAMELSPage() {
                   Detailed Analysis
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {Object.entries(result.analysis).map(([key, text]) => (
-                  <div key={key} className="border-l-2 border-stone-200 pl-4">
-                    <p className="text-sm text-stone-700 leading-relaxed">{text}</p>
-                  </div>
-                ))}
+              <CardContent className="space-y-6">
+                {Object.entries(result.analysis).map(([key, text]) => {
+                  const colorMap: Record<string, string> = {
+                    capital: 'border-red-300',
+                    asset_quality: 'border-amber-300',
+                    management: 'border-blue-300',
+                    earnings: 'border-emerald-300',
+                    liquidity: 'border-purple-300',
+                    composite: 'border-stone-400',
+                  }
+                  return (
+                    <div key={key} className={`border-l-3 ${colorMap[key] || 'border-stone-200'} pl-4`}>
+                      <div
+                        className="text-sm text-stone-700 leading-relaxed prose prose-sm max-w-none"
+                        dangerouslySetInnerHTML={{
+                          __html: text
+                            .replace(/\*\*(.*?)\*\*/g, '<strong class="text-stone-900 text-base block mb-2">$1</strong>')
+                            .replace(/\n- /g, '<br/>• ')
+                            .replace(/\n/g, '<br/>')
+                        }}
+                      />
+                    </div>
+                  )
+                })}
               </CardContent>
             </Card>
           </>
