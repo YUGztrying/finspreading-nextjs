@@ -12,7 +12,8 @@ import {
   BarChart3,
   FileText,
   Download,
-  Building2
+  Building2,
+  Shield,
 } from 'lucide-react'
 
 interface NavItem {
@@ -29,6 +30,7 @@ const navigationItems: NavItem[] = [
   { title: 'Hors Bilan', href: '/hors-bilan', icon: FileSpreadsheet },
   { title: 'Compte de Résultats', href: '/compte-resultats', icon: BarChart3 },
   { title: 'Rapport IRP', href: '/rapport-irp', icon: FileText },
+  { title: 'Analyse CAMELS', href: '/camels', icon: Shield },
   { title: 'Export Complet', href: '/export', icon: Download },
 ]
 

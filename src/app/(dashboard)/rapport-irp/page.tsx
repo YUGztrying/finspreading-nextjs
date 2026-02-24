@@ -77,6 +77,7 @@ export default function IRPReportPage() {
 
         const uniqueCompanies = [...new Set(statements?.map((s: any) => s.company_name) || [])] as string[]
 
+        setCompanies(uniqueCompanies)
         if (uniqueCompanies.length > 0) {
           setSelectedCompany(uniqueCompanies[0])
         }
@@ -151,7 +152,7 @@ export default function IRPReportPage() {
       const balanceSheetData = balanceSheetRef.current?.getCalculatedData?.() || null
       const incomeStatementData = incomeStatementRef.current?.getCalculatedData?.() || null
 
-      const response = await fetch('/api/statements/irp-export', {
+      const response = await fetch('/api/statements/irp-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

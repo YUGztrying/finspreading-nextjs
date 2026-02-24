@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, LogOut, FileSpreadsheet, Building2 } from 'lucide-react'
+import { Loader2, LogOut, FileSpreadsheet, Building2, BarChart3 } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -170,10 +170,11 @@ export default function DashboardPage() {
           </Card>
 
           {/* IRP Reports Card */}
-          <Card className="border-stone-200 opacity-50">
+          <Card className="border-stone-200 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => router.push('/rapport-irp')}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
-                <FileSpreadsheet className="w-5 h-5 text-stone-400" />
+                <FileSpreadsheet className="w-5 h-5 text-stone-600" />
                 Rapports IRP
               </CardTitle>
             </CardHeader>
@@ -181,8 +182,27 @@ export default function DashboardPage() {
               <p className="text-sm text-stone-600 mb-4">
                 Générez vos rapports standardisés
               </p>
-              <Button variant="outline" className="w-full" disabled>
-                Bientôt disponible
+              <Button className="w-full bg-stone-600 hover:bg-stone-700">
+                Accéder
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* CAMELS Analysis Card */}
+          <Card className="border-stone-200 hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => router.push('/camels')}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-medium text-stone-900">
+                <BarChart3 className="w-5 h-5 text-red-600" />
+                Analyse CAMELS
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-stone-600 mb-4">
+                Évaluation de la santé financière
+              </p>
+              <Button className="w-full bg-red-600 hover:bg-red-700">
+                Accéder
               </Button>
             </CardContent>
           </Card>
