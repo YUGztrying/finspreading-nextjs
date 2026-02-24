@@ -18,6 +18,26 @@ import ScoreCard from '@/components/camels/ScoreCard'
 import RatioTable from '@/components/camels/RatioTable'
 import CompositeGauge from '@/components/camels/CompositeGauge'
 
+interface SummaryRow {
+  label: string
+  key: string
+  values: number[]
+  cagr: number | null
+  bold: boolean
+}
+
+interface RatioRow {
+  label: string
+  values: (number | null)[]
+  format: 'percent' | 'number' | 'multiple'
+}
+
+interface GrowthRow {
+  label: string
+  values: (number | null)[]
+  format: 'percent'
+}
+
 interface AnalysisResponse {
   success: boolean
   company_name: string
@@ -25,14 +45,15 @@ interface AnalysisResponse {
   periods: string[]
   period_labels: string[]
   financial_summary: {
-    balance_sheet: Array<{ label: string; key: string; values: number[] }>
-    income_statement: Array<{ label: string; key: string; values: number[] }>
+    balance_sheet: SummaryRow[]
+    income_statement: SummaryRow[]
   }
+  growth_evolution: GrowthRow[]
   ratio_tables: {
-    solvency: Array<{ label: string; values: (number | null)[]; format: 'percent' | 'number' | 'multiple' }>
-    asset_quality: Array<{ label: string; values: (number | null)[]; format: 'percent' | 'number' | 'multiple' }>
-    profitability: Array<{ label: string; values: (number | null)[]; format: 'percent' | 'number' | 'multiple' }>
-    liquidity: Array<{ label: string; values: (number | null)[]; format: 'percent' | 'number' | 'multiple' }>
+    solvency: RatioRow[]
+    asset_quality: RatioRow[]
+    profitability: RatioRow[]
+    liquidity: RatioRow[]
   }
   ratings: {
     capital: { rating: number | null; status: string; ratios: Record<string, number | null> }
@@ -269,6 +290,45 @@ export default function CAMELSPage() {
               />
             </div>
 
+            {/* Balance Sheet */}
+            <RatioTable
+              title="Balance Sheet"
+              periodLabels={result.period_labels}
+              showCagr
+              rows={result.financial_summary.balance_sheet.map(r => ({
+                label: r.label,
+                values: r.values,
+                format: 'number' as const,
+                bold: r.bold,
+                cagr: r.cagr,
+              }))}
+            />
+
+            {/* Income Statement */}
+            <RatioTable
+              title="Income Statement"
+              periodLabels={result.period_labels}
+              showCagr
+              rows={result.financial_summary.income_statement.map(r => ({
+                label: r.label,
+                values: r.values,
+                format: 'number' as const,
+                bold: r.bold,
+                cagr: r.cagr,
+              }))}
+            />
+
+            {/* Growth Evolution */}
+            <RatioTable
+              title="Growth Evolution"
+              periodLabels={result.period_labels}
+              rows={result.growth_evolution.map(r => ({
+                label: r.label,
+                values: r.values,
+                format: r.format,
+              }))}
+            />
+
             {/* Ratio Tables */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <RatioTable
@@ -292,26 +352,6 @@ export default function CAMELSPage() {
                 rows={result.ratio_tables.liquidity}
               />
             </div>
-
-            {/* Financial Summary */}
-            <RatioTable
-              title="Balance Sheet Summary"
-              periodLabels={result.period_labels}
-              rows={result.financial_summary.balance_sheet.map(r => ({
-                label: r.label,
-                values: r.values,
-                format: 'number' as const,
-              }))}
-            />
-            <RatioTable
-              title="Income Statement Summary"
-              periodLabels={result.period_labels}
-              rows={result.financial_summary.income_statement.map(r => ({
-                label: r.label,
-                values: r.values,
-                format: 'number' as const,
-              }))}
-            />
 
             {/* Analysis Text */}
             <Card className="border-stone-200 bg-white">

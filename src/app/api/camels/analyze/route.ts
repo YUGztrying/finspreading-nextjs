@@ -162,32 +162,77 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Build financial summary
+    // ─── CAGR helper ─────────────────────────────────────────────────────────
+    function computeCagr(values: number[]): number | null {
+      if (values.length < 2) return null
+      const first = values[0]
+      const last = values[values.length - 1]
+      if (first <= 0 || last <= 0) return null
+      return Math.pow(last / first, 1 / (values.length - 1)) - 1
+    }
+
+    // ─── Balance Sheet ────────────────────────────────────────────────────────
     const balanceSheetKeys = [
-      { label: 'Total Assets', key: 'total_assets' },
-      { label: 'Gross Loans', key: 'gross_loans' },
-      { label: 'Total Deposits', key: 'total_deposits' },
-      { label: 'Total Equity', key: 'total_equity' },
+      { label: 'Total Assets', key: 'total_assets', bold: true },
+      { label: 'Total Liabilities', key: 'total_liabilities', bold: true },
+      { label: "Shareholders' Equity", key: 'total_equity', bold: true },
+      { label: 'Cash & Bank Deposits', key: 'cash_and_equivalents', bold: false },
+      { label: 'Investment Securities', key: 'investment_securities', bold: false },
+      { label: 'Gross Loans', key: 'gross_loans', bold: false },
+      { label: 'Loan Loss Provisions', key: 'loan_loss_provisions', bold: false },
+      { label: 'Customer Deposits', key: 'total_deposits', bold: false },
+      { label: 'Borrowings', key: '_borrowings', bold: false },
+      { label: 'Subordinated Debt', key: 'subordinated_debt', bold: false },
     ]
+
+    const buildSummaryRow = (label: string, key: string, bold: boolean) => {
+      const values = results.map(r => {
+        if (key === '_borrowings') {
+          return (r.data.short_term_borrowings ?? 0) + (r.data.long_term_debt ?? 0)
+        }
+        return r.data[key] ?? 0
+      })
+      return { label, key, values, cagr: computeCagr(values), bold }
+    }
+
+    const balanceSheet = balanceSheetKeys.map(k => buildSummaryRow(k.label, k.key, k.bold))
+
+    // ─── Income Statement ─────────────────────────────────────────────────────
     const incomeKeys = [
-      { label: 'Interest Income', key: 'interest_income' },
-      { label: 'Interest Expenses', key: 'interest_expenses' },
-      { label: 'Operating Expenses', key: 'operating_expenses' },
-      { label: 'Net Income', key: 'net_income' },
+      { label: 'Net Interest Income', key: 'net_interest_income', bold: false },
+      { label: 'Non-Interest Income', key: 'non_interest_income', bold: false },
+      { label: 'Operating Expenses', key: 'operating_expenses', bold: false },
+      { label: 'Cost of Risk', key: 'provision_expenses', bold: false },
+      { label: 'Net Profit', key: 'net_income', bold: true },
     ]
 
-    const buildSummary = (keys: Array<{ label: string; key: string }>) =>
-      keys.map(({ label, key }) => ({
-        label,
-        key,
-        values: results.map(r => r.data[key] ?? 0),
-      }))
+    const incomeStatement = incomeKeys.map(k => buildSummaryRow(k.label, k.key, k.bold))
 
-    // Build ratio tables
+    // ─── Growth Evolution ─────────────────────────────────────────────────────
+    const growthKeys = [
+      { label: 'Total Asset Growth', key: 'total_assets' },
+      { label: 'Gross Loan Growth', key: 'gross_loans' },
+      { label: 'Deposit Growth', key: 'total_deposits' },
+      { label: 'Equity Growth', key: 'total_equity' },
+    ]
+
+    const growthEvolution = growthKeys.map(({ label, key }) => {
+      const values = results.map((r, i) => {
+        if (i === 0) return null
+        const prev = results[i - 1].data[key] ?? 0
+        const curr = r.data[key] ?? 0
+        if (prev === 0) return null
+        return (curr - prev) / Math.abs(prev)
+      })
+      return { label, key, values, format: 'percent' as const }
+    })
+
+    // ─── Ratio Tables ─────────────────────────────────────────────────────────
+    // CAR (Capital Adequacy Ratio) = Total Equity / Total Assets (same as equity_assets)
     const ratioKeys = {
       solvency: [
+        { label: 'CAR', key: 'equity_assets', format: 'percent' as const },
         { label: 'Equity / Assets', key: 'equity_assets', format: 'percent' as const },
-        { label: 'Debt / Assets', key: 'debt_assets', format: 'percent' as const },
       ],
       asset_quality: [
         { label: 'NPL Ratio', key: 'npl_ratio', format: 'percent' as const },
@@ -196,12 +241,11 @@ export async function POST(request: NextRequest) {
       profitability: [
         { label: 'ROAA', key: 'roaa', format: 'percent' as const },
         { label: 'ROAE', key: 'roae', format: 'percent' as const },
-        { label: 'Net Interest Margin', key: 'net_interest_margin', format: 'percent' as const },
-        { label: 'Cost-to-Income', key: 'cost_to_income', format: 'percent' as const },
+        { label: 'Cost-to-Income Ratio', key: 'cost_to_income', format: 'percent' as const },
       ],
       liquidity: [
-        { label: 'Liquid Assets / Total Assets', key: 'liquid_assets_total_assets', format: 'percent' as const },
         { label: 'Gross Loans / Deposits', key: 'gross_loans_deposits', format: 'percent' as const },
+        { label: 'Liquid Assets / Total Assets', key: 'liquid_assets_total_assets', format: 'percent' as const },
       ],
     }
 
@@ -220,9 +264,10 @@ export async function POST(request: NextRequest) {
       periods,
       period_labels: periodLabels,
       financial_summary: {
-        balance_sheet: buildSummary(balanceSheetKeys),
-        income_statement: buildSummary(incomeKeys),
+        balance_sheet: balanceSheet,
+        income_statement: incomeStatement,
       },
+      growth_evolution: growthEvolution,
       ratio_tables: {
         solvency: buildRatioTable(ratioKeys.solvency),
         asset_quality: buildRatioTable(ratioKeys.asset_quality),
