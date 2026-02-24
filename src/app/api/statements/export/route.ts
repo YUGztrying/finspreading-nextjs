@@ -282,7 +282,6 @@ export async function POST(request: NextRequest) {
       }
 
       const camLabels = camPeriods.map(fmtPeriod)
-      const latest = camResults[camResults.length - 1]
 
       // ── Title ──
       const ct = camSheet.addRow([`CAMELS ANALYSIS — ${company_name}`])
@@ -302,14 +301,14 @@ export async function POST(request: NextRequest) {
       styleHeader(colHdr, C.stone100)
       colHdr.font = { bold: true, color: { argb: '44403C' } }
 
-      const ratingComponents = [
+      const ratingComponents: Array<{ label: string; key: string; bold?: boolean }> = [
         { label: 'Capital (C)',       key: 'capital'       },
         { label: 'Asset Quality (A)', key: 'asset_quality' },
         { label: 'Management (M)',    key: 'management'    },
         { label: 'Earnings (E)',      key: 'earnings'      },
         { label: 'Liquidity (L)',     key: 'liquidity'     },
         { label: 'COMPOSITE',         key: 'composite',    bold: true },
-      ] as const
+      ]
 
       for (const comp of ratingComponents) {
         const vals = camResults.map(r => {
