@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,6 +32,7 @@ interface FinancialStatement {
 
 export default function CompteResultatsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [companies, setCompanies] = useState<string[]>([])
@@ -69,7 +70,9 @@ export default function CompteResultatsPage() {
 
         if (result.companies && result.companies.length > 0) {
           setCompanies(result.companies)
-          setSelectedCompany(result.companies[0])
+          const paramCompany = searchParams.get('company')
+          const initial = (paramCompany && result.companies.includes(paramCompany)) ? paramCompany : result.companies[0]
+          setSelectedCompany(initial)
         } else {
           setNotification({
             type: 'info',

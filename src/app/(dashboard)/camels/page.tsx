@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -77,6 +77,7 @@ type Overrides = Record<string, { car_override: number | null; npl_amount_overri
 
 export default function CAMELSPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [analyzing, setAnalyzing] = useState(false)
   const [companies, setCompanies] = useState<string[]>([])
@@ -108,7 +109,11 @@ export default function CAMELSPage() {
 
         const uniqueCompanies = [...new Set(statements?.map((s: any) => s.company_name) || [])] as string[]
         setCompanies(uniqueCompanies)
-        if (uniqueCompanies.length > 0) setSelectedCompany(uniqueCompanies[0])
+        if (uniqueCompanies.length > 0) {
+          const paramCompany = searchParams.get('company')
+          const initial = (paramCompany && uniqueCompanies.includes(paramCompany)) ? paramCompany : uniqueCompanies[0]
+          setSelectedCompany(initial)
+        }
       } catch (err: any) {
         console.error('Error fetching companies:', err)
       } finally {

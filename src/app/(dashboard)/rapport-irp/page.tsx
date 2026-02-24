@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,6 +41,7 @@ interface IRPData {
 
 export default function IRPReportPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [companies, setCompanies] = useState<string[]>([])
@@ -79,7 +80,9 @@ export default function IRPReportPage() {
 
         setCompanies(uniqueCompanies)
         if (uniqueCompanies.length > 0) {
-          setSelectedCompany(uniqueCompanies[0])
+          const paramCompany = searchParams.get('company')
+          const initial = (paramCompany && uniqueCompanies.includes(paramCompany)) ? paramCompany : uniqueCompanies[0]
+          setSelectedCompany(initial)
         }
       } catch (error: any) {
         console.error('Error fetching companies:', error)

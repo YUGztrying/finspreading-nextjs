@@ -242,7 +242,7 @@ function Workbench({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push('/rapport-irp')}
+                      onClick={() => router.push(`/rapport-irp?company=${encodeURIComponent(a.company_name)}`)}
                       className="h-7 px-3 text-xs border-stone-200 text-stone-600 hover:text-stone-900"
                     >
                       IRP
@@ -250,7 +250,7 @@ function Workbench({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => router.push('/camels')}
+                      onClick={() => router.push(`/camels?company=${encodeURIComponent(a.company_name)}`)}
                       className="h-7 px-3 text-xs border-stone-200 text-stone-600 hover:text-stone-900"
                     >
                       CAMELS
