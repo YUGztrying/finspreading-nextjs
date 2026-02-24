@@ -177,6 +177,7 @@ function ExportPageContent() {
           <div className="px-6 py-4 border-b border-stone-100">
             <p className="text-xs font-medium text-stone-400 uppercase tracking-wide mb-3">Sheets included</p>
             <ul className="space-y-2.5">
+              {/* Raw spread sheets — present only if the statement was uploaded */}
               {(Object.keys(STATEMENT_META) as StatementType[]).map((type) => {
                 const present = meta.statements.includes(type)
                 const info = STATEMENT_META[type]
@@ -195,6 +196,33 @@ function ExportPageContent() {
                   </li>
                 )
               })}
+
+              {/* IRP Report — always generated */}
+              <li className="flex items-center gap-3 pt-1 border-t border-stone-100 mt-1">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-blue-600" />
+                <span className="text-sm text-stone-800">
+                  IRP Report
+                  <span className="ml-1.5 text-xs text-stone-400">— standardised balance sheet &amp; P&L in IFC format</span>
+                </span>
+              </li>
+
+              {/* CAMELS — always generated */}
+              <li className="flex items-center gap-3">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-amber-600" />
+                <span className="text-sm text-stone-800">
+                  CAMELS
+                  <span className="ml-1.5 text-xs text-stone-400">— ratings, ratios &amp; financial summary across all periods</span>
+                </span>
+              </li>
+
+              {/* Metadata */}
+              <li className="flex items-center gap-3">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-stone-400" />
+                <span className="text-sm text-stone-800">
+                  Metadata
+                  <span className="ml-1.5 text-xs text-stone-400">— institution info &amp; export details</span>
+                </span>
+              </li>
             </ul>
           </div>
 
@@ -202,7 +230,7 @@ function ExportPageContent() {
           <div className="px-6 py-5">
             <ExportButton companyName={selectedCompany} userId={userId} />
             <p className="text-xs text-stone-400 mt-2">
-              Exports as <span className="font-medium">.xlsx</span> with one sheet per statement type plus a metadata sheet.
+              Exports as <span className="font-medium">.xlsx</span> — raw spreads + IRP Report + CAMELS + Metadata.
             </p>
           </div>
         </div>
