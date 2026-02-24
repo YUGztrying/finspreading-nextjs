@@ -12,8 +12,10 @@ export interface RatioTableRow {
   cagr?: number | null
   // Inline override editing (latest period only)
   editable?: boolean
-  overrideValue?: number | null   // analyst-provided value (decimal)
-  onSave?: (decimalValue: number | null) => Promise<void>
+  overrideValue?: number | null   // analyst-provided value (stored as-is, matches format)
+  onSave?: (value: number | null) => Promise<void>
+  // Read-only derived value shown in blue on the latest period cell (non-editable)
+  latestDerivedValue?: number | null
 }
 
 interface RatioTableProps {
@@ -49,24 +51,33 @@ function EditableCell({ row, computedValue }: { row: RatioTableRow; computedValu
   const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const isPercent = row.format === 'percent'
   const isOverride = row.overrideValue != null
   const displayValue = isOverride ? row.overrideValue : computedValue
 
   const startEdit = () => {
-    // Pre-fill with current override or computed value in percent terms
     const current = row.overrideValue ?? computedValue
-    setDraft(current != null ? (current * 100).toFixed(2) : '')
+    if (isPercent) {
+      setDraft(current != null ? (current * 100).toFixed(2) : '')
+    } else {
+      setDraft(current != null ? current.toFixed(0) : '')
+    }
     setEditing(true)
     setTimeout(() => inputRef.current?.select(), 0)
   }
 
   const save = async () => {
     const trimmed = draft.trim()
-    // Empty input = clear the override
-    const decimalValue = trimmed === '' ? null : parseFloat(trimmed) / 100
-    if (trimmed !== '' && isNaN(decimalValue as number)) {
-      setEditing(false)
-      return
+    let decimalValue: number | null
+    if (trimmed === '') {
+      decimalValue = null
+    } else {
+      const parsed = parseFloat(trimmed)
+      if (isNaN(parsed)) {
+        setEditing(false)
+        return
+      }
+      decimalValue = isPercent ? parsed / 100 : parsed
     }
     setSaving(true)
     setEditing(false)
@@ -80,7 +91,7 @@ function EditableCell({ row, computedValue }: { row: RatioTableRow; computedValu
         <input
           ref={inputRef}
           type="number"
-          step="0.01"
+          step={isPercent ? '0.01' : '1'}
           value={draft}
           autoFocus
           onChange={e => setDraft(e.target.value)}
@@ -89,10 +100,10 @@ function EditableCell({ row, computedValue }: { row: RatioTableRow; computedValu
             if (e.key === 'Escape') setEditing(false)
           }}
           onBlur={save}
-          className="w-16 text-right text-xs font-mono border-0 border-b border-blue-400 bg-transparent outline-none text-stone-900"
-          placeholder="0.00"
+          className="w-20 text-right text-xs font-mono border-0 border-b border-blue-400 bg-transparent outline-none text-stone-900"
+          placeholder={isPercent ? '0.00' : '0'}
         />
-        <span className="text-xs text-stone-400">%</span>
+        {isPercent && <span className="text-xs text-stone-400">%</span>}
       </div>
     )
   }
@@ -170,6 +181,20 @@ export default function RatioTable({ title, periodLabels, rows, showCagr = false
                 {row.values.map((v, j) => {
                   const isLatest = j === latestIdx
                   const isEditable = row.editable && isLatest
+
+                  // Read-only derived value (blue dot, non-editable)
+                  if (isLatest && row.latestDerivedValue != null) {
+                    return (
+                      <td key={j} className="text-right px-4 py-2.5">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" title="Derived from analyst NPL Amount" />
+                          <span className="font-mono tabular-nums text-blue-700 font-medium">
+                            {formatCell(row.latestDerivedValue, row.format)}
+                          </span>
+                        </div>
+                      </td>
+                    )
+                  }
 
                   if (isEditable) {
                     return (

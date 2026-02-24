@@ -66,11 +66,12 @@ interface AnalysisResponse {
     composite: { composite_rating: number | null; average: number | null; status: string }
   }
   analysis: Record<string, string>
+  key_metrics: Record<string, number | null>
 }
 
 interface Overrides {
   car_override: number | null
-  npl_ratio_override: number | null
+  npl_amount_override: number | null
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ export default function CAMELSPage() {
   const [selectedCompany, setSelectedCompany] = useState<string>('')
   const [userId, setUserId] = useState<string>('')
   const [result, setResult] = useState<AnalysisResponse | null>(null)
-  const [overrides, setOverrides] = useState<Overrides>({ car_override: null, npl_ratio_override: null })
+  const [overrides, setOverrides] = useState<Overrides>({ car_override: null, npl_amount_override: null })
   const [error, setError] = useState<string | null>(null)
 
   // Fetch user and companies on mount
@@ -125,7 +126,7 @@ export default function CAMELSPage() {
     setAnalyzing(true)
     setError(null)
     setResult(null)
-    setOverrides({ car_override: null, npl_ratio_override: null })
+    setOverrides({ car_override: null, npl_amount_override: null })
 
     try {
       const response = await fetch('/api/camels/analyze', {
@@ -153,7 +154,7 @@ export default function CAMELSPage() {
         if (periodOverrides) {
           setOverrides({
             car_override: periodOverrides.car_override ?? null,
-            npl_ratio_override: periodOverrides.npl_ratio_override ?? null,
+            npl_amount_override: periodOverrides.npl_amount_override ?? null,
           })
         }
       }
@@ -166,7 +167,7 @@ export default function CAMELSPage() {
 
   // Save one override field and update local state immediately
   const saveOverride = async (
-    field: 'car_override' | 'npl_ratio_override',
+    field: 'car_override' | 'npl_amount_override',
     value: number | null
   ) => {
     if (!result || !userId) return
@@ -212,20 +213,41 @@ export default function CAMELSPage() {
       })
     : []
 
-  // Build asset quality rows with NPL Ratio editable
+  // Derive NPL Ratio and Coverage Ratio from analyst-provided NPL Amount
+  const grossLoans = result?.key_metrics?.gross_loans ?? null
+  const loanLossProvisions = result?.key_metrics?.loan_loss_provisions ?? null
+  const nplAmount = overrides.npl_amount_override
+
+  const effectiveNplRatio =
+    nplAmount != null && grossLoans != null && grossLoans !== 0
+      ? nplAmount / grossLoans
+      : null
+
+  const effectiveCoverageRatio =
+    nplAmount != null && nplAmount !== 0 && loanLossProvisions != null
+      ? Math.abs(loanLossProvisions) / nplAmount
+      : null
+
+  // Build asset quality rows:
+  //   1. NPL Amount (editable — analyst enters absolute value from footnotes)
+  //   2. NPL Ratio  (derived from NPL Amount ÷ Gross Loans, shown in blue)
+  //   3. Coverage Ratio (derived from LLP ÷ NPL Amount, shown in blue)
   const assetQualityRows = result
-    ? result.ratio_tables.asset_quality.map((row, i) => {
-        if (i === 0) {
-          // NPL Ratio row — analyst-provided
-          return {
-            ...row,
-            editable: true,
-            overrideValue: overrides.npl_ratio_override,
-            onSave: (v: number | null) => saveOverride('npl_ratio_override', v),
-          }
-        }
-        return row
-      })
+    ? [
+        {
+          label: 'NPL Amount',
+          values: Array(result.periods.length).fill(null) as (number | null)[],
+          format: 'number' as const,
+          editable: true,
+          overrideValue: nplAmount,
+          onSave: (v: number | null) => saveOverride('npl_amount_override', v),
+        },
+        ...result.ratio_tables.asset_quality.map((row, i) => {
+          if (i === 0) return { ...row, latestDerivedValue: effectiveNplRatio }
+          if (i === 1) return { ...row, latestDerivedValue: effectiveCoverageRatio }
+          return row
+        }),
+      ]
     : []
 
   const analysisColorMap: Record<string, string> = {
@@ -350,7 +372,7 @@ export default function CAMELSPage() {
                 <RatioTable title="Asset Quality" periodLabels={result.period_labels} rows={assetQualityRows} />
                 <p className="mt-1.5 text-xs text-stone-400 px-1">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-1 align-middle" />
-                  NPL Ratio — click the latest value to override with a figure from the bank's footnotes.
+                  Enter the NPL Amount from the bank&apos;s footnotes — NPL Ratio and Coverage Ratio update automatically.
                 </p>
               </div>
               <RatioTable title="Profitability" periodLabels={result.period_labels} rows={result.ratio_tables.profitability} />

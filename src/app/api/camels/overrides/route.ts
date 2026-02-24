@@ -1,6 +1,6 @@
 // src/app/api/camels/overrides/route.ts
-// GET  — fetch analyst overrides for a company (latest period per company).
-// POST — save or clear an analyst override for a specific company + period.
+// GET  — fetch analyst overrides for a company across all periods.
+// POST — save or clear a single override field for a specific company + period.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
@@ -17,10 +17,9 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServiceClient() as any
 
-  // Return overrides for all periods so the page can merge per-period
   const { data, error } = await supabase
     .from('camels_analyses')
-    .select('period, car_override, npl_ratio_override')
+    .select('period, car_override, npl_amount_override')
     .eq('user_id', user_id)
     .eq('company_name', company_name)
     .order('period', { ascending: true })
@@ -29,12 +28,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Return as a map: period → overrides
-  const overrideMap: Record<string, { car_override: number | null; npl_ratio_override: number | null }> = {}
+  // Map: period → { car_override, npl_amount_override }
+  const overrideMap: Record<string, { car_override: number | null; npl_amount_override: number | null }> = {}
   for (const row of data ?? []) {
     overrideMap[row.period] = {
       car_override: row.car_override ?? null,
-      npl_ratio_override: row.npl_ratio_override ?? null,
+      npl_amount_override: row.npl_amount_override ?? null,
     }
   }
 
@@ -42,22 +41,27 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/camels/overrides
-// Body: { user_id, company_name, period, field: 'car_override'|'npl_ratio_override', value: number|null }
+// Body: { user_id, company_name, period, field: 'car_override'|'npl_amount_override', value: number|null }
 export async function POST(request: NextRequest) {
   try {
     const { user_id, company_name, period, field, value } = await request.json()
 
     if (!user_id || !company_name || !period || !field) {
-      return NextResponse.json({ error: 'user_id, company_name, period, and field are required' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'user_id, company_name, period, and field are required' },
+        { status: 400 }
+      )
     }
 
-    if (field !== 'car_override' && field !== 'npl_ratio_override') {
-      return NextResponse.json({ error: 'field must be car_override or npl_ratio_override' }, { status: 400 })
+    if (field !== 'car_override' && field !== 'npl_amount_override') {
+      return NextResponse.json(
+        { error: 'field must be car_override or npl_amount_override' },
+        { status: 400 }
+      )
     }
 
     const supabase = createServiceClient() as any
 
-    // Patch just the override column on the existing analysis row
     const { error } = await supabase
       .from('camels_analyses')
       .update({ [field]: value ?? null, updated_at: new Date().toISOString() })
