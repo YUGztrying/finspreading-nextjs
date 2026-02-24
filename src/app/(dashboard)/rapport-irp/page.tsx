@@ -1,9 +1,7 @@
 // src/app/(dashboard)/rapport-irp/page.tsx
 'use client'
 
-export const dynamic = 'force-dynamic'
-
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -41,7 +39,7 @@ interface IRPData {
   last_modified: string
 }
 
-export default function IRPReportPage() {
+function IRPReportPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
@@ -310,4 +308,8 @@ export default function IRPReportPage() {
       </main>
     </div>
   )
+}
+
+export default function IRPReportPage() {
+  return <Suspense fallback={null}><IRPReportPageContent /></Suspense>
 }

@@ -1,9 +1,7 @@
 // src/app/(dashboard)/hors-bilan/page.tsx
 'use client'
 
-export const dynamic = 'force-dynamic'
-
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -32,7 +30,7 @@ interface FinancialStatement {
   updated_at: string
 }
 
-export default function HorsBilanPage() {
+function HorsBilanPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
@@ -323,4 +321,8 @@ export default function HorsBilanPage() {
       </main>
     </div>
   )
+}
+
+export default function HorsBilanPage() {
+  return <Suspense fallback={null}><HorsBilanPageContent /></Suspense>
 }

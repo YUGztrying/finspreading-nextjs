@@ -1,9 +1,7 @@
 // src/app/(dashboard)/camels/page.tsx
 'use client'
 
-export const dynamic = 'force-dynamic'
-
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -77,7 +75,7 @@ type Overrides = Record<string, { car_override: number | null; npl_amount_overri
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function CAMELSPage() {
+function CAMELSPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
@@ -442,4 +440,8 @@ export default function CAMELSPage() {
       </main>
     </div>
   )
+}
+
+export default function CAMELSPage() {
+  return <Suspense fallback={null}><CAMELSPageContent /></Suspense>
 }

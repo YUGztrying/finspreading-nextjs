@@ -1,9 +1,7 @@
 // src/app/(dashboard)/compte-resultats/page.tsx
 'use client'
 
-export const dynamic = 'force-dynamic'
-
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -32,7 +30,7 @@ interface FinancialStatement {
   updated_at: string
 }
 
-export default function CompteResultatsPage() {
+function CompteResultatsPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
@@ -327,4 +325,8 @@ export default function CompteResultatsPage() {
       </main>
     </div>
   )
+}
+
+export default function CompteResultatsPage() {
+  return <Suspense fallback={null}><CompteResultatsPageContent /></Suspense>
 }
