@@ -12,7 +12,7 @@ import { LineItem } from '@/types/database.types'
 
 export async function POST(request: NextRequest) {
   try {
-    const { user_id, company_name } = await request.json()
+    const { user_id, company_name, force_refresh = false } = await request.json()
 
     if (!user_id || !company_name) {
       return NextResponse.json(
@@ -89,7 +89,35 @@ export async function POST(request: NextRequest) {
 
     // Try AI narrative (Layer 2) — falls back to deterministic (Layer 1) if unavailable
     let analysisText = latestResult.analysis.analysis
-    const narrative = await generateNarrative({
+    let analysisCached = false
+    let lastRun: string | null = null
+
+    // Use cached narrative if it exists and a refresh was not explicitly requested
+    if (!force_refresh) {
+      const { data: cached } = await supabase
+        .from('camels_analyses')
+        .select('analysis_capital, analysis_asset_quality, analysis_management, analysis_earnings, analysis_liquidity, analysis_composite, updated_at')
+        .eq('user_id', user_id)
+        .eq('company_name', company_name)
+        .eq('period', latestResult.period)
+        .maybeSingle()
+
+      if (cached?.analysis_composite) {
+        analysisText = {
+          capital: cached.analysis_capital ?? '',
+          asset_quality: cached.analysis_asset_quality ?? '',
+          management: cached.analysis_management ?? '',
+          earnings: cached.analysis_earnings ?? '',
+          liquidity: cached.analysis_liquidity ?? '',
+          composite: cached.analysis_composite ?? '',
+        }
+        analysisCached = true
+        lastRun = cached.updated_at ?? null
+        console.log('CAMELS: Using cached narrative from DB')
+      }
+    }
+
+    const narrative = !analysisCached ? await generateNarrative({
       companyName: company_name,
       institutionType: institutionType,
       periods,
@@ -105,12 +133,12 @@ export async function POST(request: NextRequest) {
         ratios: r.analysis.ratios,
       })),
       ratings: latestResult.analysis.ratings as any,
-    })
+    }) : null
 
     if (narrative) {
       console.log('CAMELS: Using AI-generated narrative')
       analysisText = narrative
-    } else {
+    } else if (!analysisCached) {
       console.log('CAMELS: Using deterministic analysis paragraphs')
     }
 
@@ -257,8 +285,12 @@ export async function POST(request: NextRequest) {
         format,
       }))
 
+    // Set last_run to now for fresh analyses
+    if (!lastRun) lastRun = new Date().toISOString()
+
     return NextResponse.json({
       success: true,
+      last_run: lastRun,
       company_name,
       type_institution: institutionType,
       periods,

@@ -42,6 +42,7 @@ interface GrowthRow {
 
 interface AnalysisResponse {
   success: boolean
+  last_run: string
   company_name: string
   type_institution: string
   periods: string[]
@@ -118,19 +119,21 @@ export default function CAMELSPage() {
   }, [router])
 
   // Run CAMELS analysis — then immediately load any saved overrides (all periods)
-  const runAnalysis = async () => {
+  const runAnalysis = async (forceRefresh = false) => {
     if (!selectedCompany || !userId) return
 
     setAnalyzing(true)
     setError(null)
-    setResult(null)
-    setOverrides({})
+    if (forceRefresh) {
+      setResult(null)
+      setOverrides({})
+    }
 
     try {
       const response = await fetch('/api/camels/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, company_name: selectedCompany }),
+        body: JSON.stringify({ user_id: userId, company_name: selectedCompany, force_refresh: forceRefresh }),
       })
 
       if (!response.ok) {
@@ -155,6 +158,14 @@ export default function CAMELSPage() {
       setAnalyzing(false)
     }
   }
+
+  // Auto-load when company + user are ready
+  useEffect(() => {
+    if (selectedCompany && userId) {
+      runAnalysis(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCompany, userId])
 
   // Save one override field for a specific period and update local state immediately
   const saveOverride = async (
@@ -283,7 +294,7 @@ export default function CAMELSPage() {
           </div>
 
           <div className="flex items-center gap-3 mt-4">
-            <Select value={selectedCompany} onValueChange={setSelectedCompany}>
+            <Select value={selectedCompany} onValueChange={v => { setSelectedCompany(v); setResult(null); setOverrides({}) }}>
               <SelectTrigger className="w-[340px] border-stone-200">
                 <SelectValue placeholder="Select a company" />
               </SelectTrigger>
@@ -294,17 +305,26 @@ export default function CAMELSPage() {
               </SelectContent>
             </Select>
 
-            <Button
-              onClick={runAnalysis}
-              disabled={analyzing || !selectedCompany}
-              className="bg-stone-900 hover:bg-stone-800"
-            >
-              {analyzing ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running…</>
-              ) : (
-                <><Play className="w-4 h-4 mr-2" />Run Analysis</>
-              )}
-            </Button>
+            {result && (
+              <>
+                <span className="text-xs text-stone-400">
+                  Last run {new Date(result.last_run).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => runAnalysis(true)}
+                  disabled={analyzing}
+                  className="border-stone-200 text-stone-600"
+                >
+                  {analyzing ? (
+                    <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Running…</>
+                  ) : (
+                    <><Play className="w-3.5 h-3.5 mr-1.5" />Re-run</>
+                  )}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -319,14 +339,23 @@ export default function CAMELSPage() {
           </Card>
         )}
 
-        {!result && !analyzing && (
+        {!result && !analyzing && companies.length === 0 && (
           <Card className="border-stone-200 bg-white shadow-sm">
             <CardContent className="p-16 text-center">
               <BarChart3 className="w-12 h-12 text-stone-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-stone-900 mb-2">Ready to analyse</h3>
+              <h3 className="text-lg font-medium text-stone-900 mb-2">No financial statements yet</h3>
               <p className="text-sm text-stone-500 max-w-sm mx-auto">
-                Select a company above and click <strong>Run Analysis</strong> to generate the full CAMELS report.
+                Upload an institution's financial statements first to run a CAMELS assessment.
               </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {analyzing && !result && (
+          <Card className="border-stone-200 bg-white shadow-sm">
+            <CardContent className="p-16 text-center">
+              <Loader2 className="w-10 h-10 animate-spin text-amber-600 mx-auto mb-4" />
+              <p className="text-sm text-stone-500">Loading analysis…</p>
             </CardContent>
           </Card>
         )}
