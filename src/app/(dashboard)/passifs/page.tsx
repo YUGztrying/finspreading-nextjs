@@ -84,7 +84,6 @@ function PassifsPageContent() {
           })
         }
       } catch (error: any) {
-        console.error('Error fetching companies:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement des données'
@@ -142,7 +141,6 @@ function PassifsPageContent() {
         }
 
       } catch (error: any) {
-        console.error('Error fetching statements:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement de l\'état'
@@ -176,7 +174,6 @@ const passifsAmounts = statement?.periods.map((_, periodIdx) => {
 
   // Refresh data after rename
   const handleRenameSuccess = async () => {
-    console.log('🔄 Starting refresh after rename...')
     
     setNotification({
       type: 'success',
@@ -224,7 +221,6 @@ const passifsAmounts = statement?.periods.map((_, periodIdx) => {
         }
       }
     } catch (error) {
-      console.error('❌ Error refreshing companies:', error)
     } finally {
       setLoading(false)
     }
@@ -267,7 +263,6 @@ const passifsAmounts = statement?.periods.map((_, periodIdx) => {
       setTimeout(() => setNotification(null), 3000)
 
     } catch (error: any) {
-      console.error('Save error:', error)
       setNotification({
         type: 'error',
         message: error.message || 'Erreur lors de l\'enregistrement'

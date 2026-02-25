@@ -30,15 +30,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('💾 Saving statement:', {
-      company: statementData.company_name,
-      type: statementData.statement_type,
-      periods: statementData.periods?.length || 0,
-      lines: statementData.line_items?.length || 0
-    })
-
     // Apply normalization before saving
-    console.log('🔧 Applying normalization...')
     const normalizeResult = normalizeFinancialLines(
       statementData.line_items || [],
       {
@@ -49,7 +41,6 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    console.log('📊 Normalization stats:', normalizeResult.stats)
 
     // Update statement data with normalized line items
     const normalizedStatementData: ProcessedData = {
@@ -64,7 +55,6 @@ export async function POST(request: NextRequest) {
       throw new Error(result.error || 'Failed to save statement')
     }
 
-    console.log('✅ Statement saved successfully:', result.statement_id)
 
     return NextResponse.json({
       success: true,
@@ -75,7 +65,6 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('❌ Save statement error:', error)
     return NextResponse.json(
       {
         error: error.message || 'Failed to save statement',

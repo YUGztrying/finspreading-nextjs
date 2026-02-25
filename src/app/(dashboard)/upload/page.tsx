@@ -124,10 +124,8 @@ export default function UploadPage() {
       
       if (lowerFileName.endsWith('.xlsx') || lowerFileName.endsWith('.xls')) {
         apiEndpoint = '/api/process-excel'
-        console.log('📊 Excel file detected, using /api/process-excel')
       } else if (lowerFileName.endsWith('.pdf')) {
         apiEndpoint = '/api/extract-data'
-        console.log('📄 PDF file detected, using /api/extract-data')
       } else {
         throw new Error(`Type de fichier non supporté: ${file.name}`)
       }
@@ -157,7 +155,6 @@ export default function UploadPage() {
       const result = await response.json().catch(() => ({}))
 
       // Step 5: Save to database
-      console.log('💾 Saving to database...')
 
       // Updated section for PDF processing in upload page
 // Replace lines 162-217 in src/app/(dashboard)/upload/page.tsx
@@ -166,18 +163,15 @@ export default function UploadPage() {
       
       if (apiEndpoint === '/api/process-excel') {
         // Excel processing - already handles multiple statements
-        console.log('📊 Excel processing complete')
         
         // Excel route already saves to database, so we're done
         const savedCount = result.saved_statements?.length || 0
-        console.log(`✅ ${savedCount} statement(s) saved from Excel`)
         
       } else {
         // PDF processing - now handles MULTIPLE statements
         const statements = result.data.statements || []
         const companyName = result.data.company_name
         
-        console.log(`📄 Processing ${statements.length} statement(s) from PDF...`)
         
         let savedCount = 0
         const savedIds: string[] = []
@@ -208,18 +202,14 @@ export default function UploadPage() {
             
             if (saveResponse.ok) {
               const saveResult = await saveResponse.json()
-              console.log(`✅ Saved ${statement.statement_type}:`, saveResult.statement_id)
               savedIds.push(saveResult.statement_id)
               savedCount++
             } else {
-              console.warn(`⚠️ Failed to save ${statement.statement_type}`)
             }
           } catch (saveError) {
-            console.error(`❌ Error saving ${statement.statement_type}:`, saveError)
           }
         }
         
-        console.log(`💾 Saved ${savedCount}/${statements.length} statements to database`)
       }
 
       // Complete progress
@@ -239,13 +229,11 @@ export default function UploadPage() {
       setVerificationCompany(uploadedCompanyName)
       setNotification(null)
 
-      console.log('📊 Processing complete:', result)
 
       // Auto-remove after 3 seconds
       setTimeout(() => removeFile(index), 3000)
 
     } catch (error: any) {
-      console.error('Processing error:', error)
       
       setNotification({
         type: 'error',

@@ -123,7 +123,6 @@ function CAMELSPageContent() {
           setSelectedCompany(initial)
         }
       } catch (err: any) {
-        console.error('Error fetching companies:', err)
       } finally {
         setLoading(false)
       }

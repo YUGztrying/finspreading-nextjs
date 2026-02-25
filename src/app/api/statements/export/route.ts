@@ -76,7 +76,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`📊 Exporting statements for company: ${company_name}`)
 
     const supabase = createServiceClient() as any
 
@@ -99,7 +98,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`✅ Found ${statements.length} statements`)
 
     const institutionType: string = statements[0].type_institution ?? 'microfinance'
     const isBank = institutionType === 'banque'
@@ -155,7 +153,6 @@ export async function POST(request: NextRequest) {
         })
       })
       worksheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 1 }]
-      console.log(`✅ Sheet: ${sheetName}`)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -249,7 +246,6 @@ export async function POST(request: NextRequest) {
       irpSheet.getColumn(i).alignment = { horizontal: 'right' }
     }
     irpSheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }]
-    console.log('✅ Sheet: IRP REPORT')
 
     // ─────────────────────────────────────────────────────────────────────────
     // 3. CAMELS SHEET
@@ -530,7 +526,6 @@ export async function POST(request: NextRequest) {
         camSheet.getColumn(i).alignment = { horizontal: 'right' }
       }
       camSheet.views = [{ state: 'frozen', xSplit: 0, ySplit: 3 }]
-      console.log('✅ Sheet: CAMELS')
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -555,7 +550,6 @@ export async function POST(request: NextRequest) {
     const timestamp = new Date().toISOString().split('T')[0]
     const filename = `${sanitizedName}_${timestamp}.xlsx`
 
-    console.log(`✅ Export complete: ${filename}`)
 
     return new NextResponse(buffer, {
       headers: {
@@ -564,7 +558,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Export error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

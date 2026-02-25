@@ -136,7 +136,6 @@ export async function POST(request: NextRequest) {
         }
         analysisCached = true
         lastRun = cached.updated_at ?? null
-        console.log('CAMELS: Using cached narrative from DB')
       }
     }
 
@@ -159,10 +158,8 @@ export async function POST(request: NextRequest) {
     }) : null
 
     if (narrative) {
-      console.log('CAMELS: Using AI-generated narrative')
       analysisText = narrative
     } else if (!analysisCached) {
-      console.log('CAMELS: Using deterministic analysis paragraphs')
     }
 
     // Save each period's analysis to the database (upsert)
@@ -209,7 +206,6 @@ export async function POST(request: NextRequest) {
         .upsert(row, { onConflict: 'user_id,company_name,period' })
 
       if (upsertError) {
-        console.error(`Failed to save analysis for period ${period}:`, upsertError)
       }
     }
 
@@ -334,7 +330,6 @@ export async function POST(request: NextRequest) {
       key_metrics: latestResult.data,
     })
   } catch (error: any) {
-    console.error('CAMELS analysis error:', error)
     return NextResponse.json(
       { error: error.message || 'CAMELS analysis failed' },
       { status: 500 }

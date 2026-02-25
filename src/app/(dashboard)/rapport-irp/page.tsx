@@ -142,7 +142,6 @@ function IRPReportPageContent() {
           setSelectedCompany(initial)
         }
       } catch (error: any) {
-        console.error('Error fetching companies:', error)
       } finally {
         setLoading(false)
       }
@@ -221,7 +220,6 @@ function IRPReportPageContent() {
       setLoading(false)
       setShowAlignmentDialog(true)
     } catch (error: any) {
-      console.error('Error fetching IRP data:', error)
       setLoading(false)
     }
   }, [])
@@ -296,7 +294,6 @@ function IRPReportPageContent() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
     } catch (error) {
-      console.error('Export error:', error)
       alert('Export failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
     } finally {
       setExporting(false)

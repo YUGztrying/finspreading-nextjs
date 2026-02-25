@@ -12,7 +12,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`📝 Renaming company from "${old_company_name}" to "${new_company_name}" for user ${user_id}`)
 
     // Use service role client to bypass RLS
     const supabase = createServiceClient() as any
@@ -25,13 +24,11 @@ export async function POST(request: NextRequest) {
       .eq('company_name', new_company_name)
 
     if (checkError) {
-      console.error('Error checking existing statements:', checkError)
       return NextResponse.json({ error: checkError.message }, { status: 500 })
     }
 
     // If new name exists, we need to merge
     if (existingStatements && existingStatements.length > 0) {
-      console.log(`⚠️ Company "${new_company_name}" already exists with ${existingStatements.length} statements`)
       
       // Get statements to rename
       const { data: statementsToRename, error: fetchError } = await supabase
@@ -58,7 +55,6 @@ export async function POST(request: NextRequest) {
         )
 
         if (existingStatement) {
-          console.log(`🔀 Merging ${statementToRename.statement_type}...`)
           
           // Merge periods (union)
           const allPeriods = [...new Set([
@@ -102,7 +98,6 @@ export async function POST(request: NextRequest) {
             .eq('id', existingStatement.id)
 
           if (updateError) {
-            console.error('Error updating statement:', updateError)
             return NextResponse.json({ error: updateError.message }, { status: 500 })
           }
 
@@ -116,7 +111,6 @@ export async function POST(request: NextRequest) {
             .eq('id', statementToRename.id)
 
           if (updateError) {
-            console.error('Error renaming statement:', updateError)
             return NextResponse.json({ error: updateError.message }, { status: 500 })
           }
         }
@@ -130,12 +124,10 @@ export async function POST(request: NextRequest) {
           .in('id', deleted)
 
         if (deleteError) {
-          console.error('Error deleting old statements:', deleteError)
           return NextResponse.json({ error: deleteError.message }, { status: 500 })
         }
       }
 
-      console.log(`✅ Merged and renamed successfully`)
       return NextResponse.json({
         success: true,
         merged: merged.length,
@@ -145,7 +137,6 @@ export async function POST(request: NextRequest) {
     }
 
     // No existing statements with new name, just rename
-    console.log('🔄 Attempting to rename all statements...')
     
     const { data: updatedData, error: updateError } = await supabase
       .from('financial_statements')
@@ -154,21 +145,17 @@ export async function POST(request: NextRequest) {
       .eq('company_name', old_company_name)
       .select()
 
-    console.log('📊 Update result:', { updatedData, updateError, rowsAffected: updatedData?.length })
 
     if (updateError) {
-      console.error('❌ Error renaming statements:', updateError)
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
     if (!updatedData || updatedData.length === 0) {
-      console.warn('⚠️ No rows were updated! Check if statements exist with this company name.')
       return NextResponse.json({ 
         error: 'No statements found to rename. The company name might not exist.' 
       }, { status: 404 })
     }
 
-    console.log(`✅ Successfully renamed ${updatedData.length} statements`)
     return NextResponse.json({
       success: true,
       updated: updatedData.length,
@@ -176,7 +163,6 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Rename error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

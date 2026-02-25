@@ -199,7 +199,6 @@ function parseNarrativeSections(text: string): NarrativeResult | null {
   const hasAll = requiredKeys.every(k => result[k] && result[k]!.length > 50)
 
   if (!hasAll) {
-    console.warn('AI narrative: some sections missing or too short, falling back to deterministic')
     return null
   }
 
@@ -217,7 +216,6 @@ export async function generateNarrative(input: NarrativeInput): Promise<Narrativ
   const apiKey = process.env.ANTHROPIC_API_KEY
 
   if (!apiKey) {
-    console.log('CAMELS narrative: ANTHROPIC_API_KEY not set, skipping AI narrative')
     return null
   }
 
@@ -239,14 +237,12 @@ export async function generateNarrative(input: NarrativeInput): Promise<Narrativ
       .join('\n')
 
     if (!responseText) {
-      console.warn('CAMELS narrative: empty response from Claude API')
       return null
     }
 
     const parsed = parseNarrativeSections(responseText)
     return parsed
   } catch (error: any) {
-    console.error('CAMELS narrative generation failed:', error.message || error)
     return null
   }
 }

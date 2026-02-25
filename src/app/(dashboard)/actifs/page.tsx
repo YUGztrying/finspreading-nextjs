@@ -84,7 +84,6 @@ function ActifsPageContent() {
           })
         }
       } catch (error: any) {
-        console.error('Error fetching companies:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement des données'
@@ -142,7 +141,6 @@ function ActifsPageContent() {
         }
 
       } catch (error: any) {
-        console.error('Error fetching statements:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement de l\'état'
@@ -176,7 +174,6 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
 
   // Refresh data after rename
   const handleRenameSuccess = async () => {
-    console.log('🔄 Starting refresh after rename...')
     
     setNotification({
       type: 'success',
@@ -186,19 +183,16 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
     setLoading(true)
 
     try {
-      console.log('📡 Fetching updated companies list...')
       const response = await fetch(
         `/api/statements/list?user_id=${userId}&statement_type=actifs`
       )
 
       if (response.ok) {
         const result = await response.json()
-        console.log('📊 Fetched companies:', result.companies)
         
         if (result.companies && result.companies.length > 0) {
           setCompanies(result.companies)
           const firstCompany = result.companies[0]
-          console.log('✅ Setting selected company to:', firstCompany)
           setSelectedCompany(firstCompany)
           
           // Fetch actifs
@@ -227,7 +221,6 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
         }
       }
     } catch (error) {
-      console.error('❌ Error refreshing companies:', error)
     } finally {
       setLoading(false)
     }
@@ -270,7 +263,6 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
       setTimeout(() => setNotification(null), 3000)
 
     } catch (error: any) {
-      console.error('Save error:', error)
       setNotification({
         type: 'error',
         message: error.message || 'Erreur lors de l\'enregistrement'

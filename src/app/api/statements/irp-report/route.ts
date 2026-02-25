@@ -6,7 +6,6 @@ export async function POST(request: NextRequest) {
   try {
     const { company_name, institution_type, periods, balance_sheet, income_statement } = await request.json()
 
-    console.log(`📊 Generating IRP Excel export for: ${company_name}`)
 
     // Create workbook
     const workbook = new ExcelJS.Workbook()
@@ -158,7 +157,6 @@ export async function POST(request: NextRequest) {
     const timestamp = new Date().toISOString().split('T')[0]
     const filename = `IRP_${sanitizedCompanyName}_${timestamp}.xlsx`
 
-    console.log(`✅ IRP Excel generated: ${filename}`)
 
     // Return Excel file
     return new NextResponse(buffer, {
@@ -169,7 +167,6 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('IRP export error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Export failed' },
       { status: 500 }

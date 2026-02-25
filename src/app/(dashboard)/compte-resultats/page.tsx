@@ -80,7 +80,6 @@ function CompteResultatsPageContent() {
           })
         }
       } catch (error: any) {
-        console.error('Error fetching companies:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement des données'
@@ -122,7 +121,6 @@ function CompteResultatsPageContent() {
           setStatement(null)
         }
       } catch (error: any) {
-        console.error('Error fetching statement:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement de l\'état'
@@ -170,7 +168,6 @@ function CompteResultatsPageContent() {
       setTimeout(() => setNotification(null), 3000)
 
     } catch (error: any) {
-      console.error('Save error:', error)
       setNotification({
         type: 'error',
         message: error.message || 'Erreur lors de l\'enregistrement'

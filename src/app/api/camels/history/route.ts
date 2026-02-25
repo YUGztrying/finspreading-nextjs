@@ -41,7 +41,6 @@ export async function GET(request: NextRequest) {
       count: data?.length ?? 0,
     })
   } catch (error: any) {
-    console.error('CAMELS history error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to fetch CAMELS history' },
       { status: 500 }

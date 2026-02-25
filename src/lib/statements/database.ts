@@ -47,7 +47,6 @@ export async function saveFinancialStatement(
 
     if (existingStatement) {
       // Statement exists - MERGE the data
-      console.log('📊 Existing statement found, merging data...')
       
       const mergedData = mergeStatements(
         {
@@ -79,12 +78,10 @@ export async function saveFinancialStatement(
         throw new Error(`Update failed: ${updateError.message}`)
       }
 
-      console.log('✅ Statement merged successfully')
       return { success: true, statement_id: updatedStatement.id }
 
     } else {
       // No existing statement - CREATE new one
-      console.log('📝 Creating new statement...')
 
       const newStatement: FinancialStatementInsert = {
         user_id: userId,
@@ -106,12 +103,10 @@ export async function saveFinancialStatement(
         throw new Error(`Insert failed: ${insertError.message}`)
       }
 
-      console.log('✅ Statement created successfully')
       return { success: true, statement_id: createdStatement.id }
     }
 
   } catch (error: any) {
-    console.error('❌ Save statement error:', error)
     return { success: false, error: error.message }
   }
 }
@@ -138,7 +133,6 @@ function mergeStatements(
       }
     })
 
-  console.log('📅 Merged periods:', allPeriods)
 
   // Step 2: Create lookup maps for existing lines
   const existingLineMap = new Map<string, LineItem>()
@@ -205,7 +199,6 @@ function mergeStatements(
     }
   })
 
-  console.log('🔗 Merged line items:', mergedLines.length)
 
   return {
     periods: allPeriods,

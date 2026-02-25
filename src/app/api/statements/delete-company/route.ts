@@ -37,7 +37,6 @@ export async function DELETE(request: NextRequest) {
       if (error) {
         // irp_aliases etc. may not exist in all deployments — skip missing tables
         if (error.code !== 'PGRST116') {
-          console.error(`Failed to delete from ${table}:`, error.message)
         }
       }
     }

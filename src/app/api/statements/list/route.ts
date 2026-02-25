@@ -45,7 +45,6 @@ export async function GET(request: NextRequest) {
     // Group by company for easy selection
     const companies = [...new Set(data.map((s: any) => s.company_name))]
 
-    console.log(`📊 Found ${data.length} statements for ${companies.length} companies`)
 
     return NextResponse.json({
       success: true,
@@ -55,7 +54,6 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('❌ List statements error:', error)
     return NextResponse.json(
       {
         error: error.message || 'Failed to fetch statements',
