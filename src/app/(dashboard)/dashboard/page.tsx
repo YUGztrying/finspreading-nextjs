@@ -14,6 +14,7 @@ import {
   Building2,
   Loader2,
   Plus,
+  Trash2,
 } from 'lucide-react'
 
 type StatementType = 'actifs' | 'passifs' | 'compte_resultats' | 'hors_bilan'
@@ -92,7 +93,6 @@ function formatDate(iso: string) {
 function EmptyState({ onStart }: { onStart: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
-      {/* Icon */}
       <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center mb-6">
         <ClipboardList className="w-8 h-8 text-amber-600" />
       </div>
@@ -105,7 +105,6 @@ function EmptyState({ onStart }: { onStart: () => void }) {
         generate spreads, an IRP report, and a CAMELS assessment.
       </p>
 
-      {/* Steps */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-10 w-full max-w-2xl">
         {ONBOARDING_STEPS.map((step, i) => (
           <div key={i} className="flex sm:flex-col items-start sm:items-center gap-3 sm:gap-2 flex-1 text-left sm:text-center">
@@ -138,12 +137,34 @@ function EmptyState({ onStart }: { onStart: () => void }) {
 
 function Workbench({
   analyses,
+  userId,
   onNew,
+  onDeleted,
 }: {
   analyses: GroupedAnalysis[]
+  userId: string
   onNew: () => void
+  onDeleted: (company: string) => void
 }) {
   const router = useRouter()
+  // Company name pending delete confirmation, or null
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDeleteConfirm = async (company: string) => {
+    setDeleting(true)
+    try {
+      await fetch('/api/statements/delete-company', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, company_name: company }),
+      })
+      onDeleted(company)
+    } finally {
+      setDeleting(false)
+      setPendingDelete(null)
+    }
+  }
 
   return (
     <div>
@@ -185,80 +206,117 @@ function Workbench({
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
-            {analyses.map((a) => (
-              <tr
-                key={a.company_name}
-                className="hover:bg-stone-50 transition-colors"
-              >
-                {/* Institution */}
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
-                      <Building2 className="w-3.5 h-3.5 text-amber-600" />
+            {analyses.map((a) => {
+              const isPending = pendingDelete === a.company_name
+
+              return (
+                <tr
+                  key={a.company_name}
+                  className={`transition-colors ${isPending ? 'bg-red-50' : 'hover:bg-stone-50'}`}
+                >
+                  {/* Institution */}
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
+                        <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                      </div>
+                      <span className="font-medium text-stone-900 leading-none">
+                        {a.company_name}
+                      </span>
                     </div>
-                    <span className="font-medium text-stone-900 leading-none">
-                      {a.company_name}
+                  </td>
+
+                  {/* Type */}
+                  <td className="px-5 py-4">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-stone-100 text-stone-600 capitalize">
+                      {a.type_institution === 'banque' ? 'Bank' : 'Microfinance'}
                     </span>
-                  </div>
-                </td>
+                  </td>
 
-                {/* Type */}
-                <td className="px-5 py-4">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-stone-100 text-stone-600 capitalize">
-                    {a.type_institution === 'banque' ? 'Bank' : 'Microfinance'}
-                  </span>
-                </td>
+                  {/* Statement badges */}
+                  <td className="px-5 py-4">
+                    <div className="flex flex-wrap gap-1.5">
+                      {(
+                        ['actifs', 'passifs', 'compte_resultats', 'hors_bilan'] as StatementType[]
+                      ).map((type) => {
+                        const present = a.statements.includes(type)
+                        const meta = STATEMENT_LABELS[type]
+                        return (
+                          <span
+                            key={type}
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium transition-opacity ${
+                              present ? meta.color : 'bg-stone-100 text-stone-300'
+                            }`}
+                          >
+                            {meta.label}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </td>
 
-                {/* Statement badges */}
-                <td className="px-5 py-4">
-                  <div className="flex flex-wrap gap-1.5">
-                    {(
-                      ['actifs', 'passifs', 'compte_resultats', 'hors_bilan'] as StatementType[]
-                    ).map((type) => {
-                      const present = a.statements.includes(type)
-                      const meta = STATEMENT_LABELS[type]
-                      return (
-                        <span
-                          key={type}
-                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium transition-opacity ${
-                            present ? meta.color : 'bg-stone-100 text-stone-300'
-                          }`}
-                        >
-                          {meta.label}
-                        </span>
-                      )
-                    })}
-                  </div>
-                </td>
+                  {/* Date */}
+                  <td className="px-5 py-4 text-stone-400 tabular-nums">
+                    {formatDate(a.updated_at)}
+                  </td>
 
-                {/* Date */}
-                <td className="px-5 py-4 text-stone-400 tabular-nums">
-                  {formatDate(a.updated_at)}
-                </td>
-
-                {/* Actions */}
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-2 justify-end">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/rapport-irp?company=${encodeURIComponent(a.company_name)}`)}
-                      className="h-7 px-3 text-xs border-stone-200 text-stone-600 hover:text-stone-900"
-                    >
-                      IRP
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => router.push(`/camels?company=${encodeURIComponent(a.company_name)}`)}
-                      className="h-7 px-3 text-xs border-stone-200 text-stone-600 hover:text-stone-900"
-                    >
-                      CAMELS
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  {/* Actions */}
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2 justify-end">
+                      {isPending ? (
+                        // Inline confirmation
+                        <>
+                          <span className="text-xs text-red-600 mr-1">Delete all data?</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPendingDelete(null)}
+                            className="h-7 px-3 text-xs border-stone-200"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={deleting}
+                            onClick={() => handleDeleteConfirm(a.company_name)}
+                            className="h-7 px-3 text-xs bg-red-600 hover:bg-red-700 text-white border-0"
+                          >
+                            {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Confirm'}
+                          </Button>
+                        </>
+                      ) : (
+                        // Normal action row
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(`/rapport-irp?company=${encodeURIComponent(a.company_name)}`)}
+                            className="h-7 px-3 text-xs border-stone-200 text-stone-600 hover:text-stone-900"
+                          >
+                            IRP
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(`/camels?company=${encodeURIComponent(a.company_name)}`)}
+                            className="h-7 px-3 text-xs border-stone-200 text-stone-600 hover:text-stone-900"
+                          >
+                            CAMELS
+                          </Button>
+                          <button
+                            onClick={() => setPendingDelete(a.company_name)}
+                            className="p-1.5 text-stone-300 hover:text-red-500 transition-colors rounded"
+                            title="Delete company"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -272,6 +330,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [analyses, setAnalyses] = useState<GroupedAnalysis[]>([])
+  const [userId, setUserId] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -284,6 +343,8 @@ export default function DashboardPage() {
         router.push('/login')
         return
       }
+
+      setUserId(user.id)
 
       const { data } = await supabase
         .from('financial_statements')
@@ -308,13 +369,22 @@ export default function DashboardPage() {
 
   const goToUpload = () => router.push('/upload')
 
+  const handleDeleted = (company: string) => {
+    setAnalyses(prev => prev.filter(a => a.company_name !== company))
+  }
+
   return (
     <div className="min-h-screen bg-stone-50">
       <main className="max-w-5xl mx-auto px-6 py-10">
         {analyses.length === 0 ? (
           <EmptyState onStart={goToUpload} />
         ) : (
-          <Workbench analyses={analyses} onNew={goToUpload} />
+          <Workbench
+            analyses={analyses}
+            userId={userId}
+            onNew={goToUpload}
+            onDeleted={handleDeleted}
+          />
         )}
       </main>
     </div>
