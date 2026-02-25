@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ArrowLeft, Building2, AlertCircle, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Building2, AlertCircle, CheckCircle, X } from 'lucide-react'
 import FileUploadZone from '@/components/upload/FileUploadZone'
 import ProcessingQueue from '@/components/upload/ProcessingQueue'
 
@@ -23,6 +23,7 @@ export default function UploadPage() {
     type: 'success' | 'error' | 'info'
     message: string
   } | null>(null)
+  const [verificationCompany, setVerificationCompany] = useState<string | null>(null)
 
   // Handle drag events
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -123,10 +124,8 @@ export default function UploadPage() {
       
       if (lowerFileName.endsWith('.xlsx') || lowerFileName.endsWith('.xls')) {
         apiEndpoint = '/api/process-excel'
-        console.log('📊 Excel file detected, using /api/process-excel')
       } else if (lowerFileName.endsWith('.pdf')) {
         apiEndpoint = '/api/extract-data'
-        console.log('📄 PDF file detected, using /api/extract-data')
       } else {
         throw new Error(`Type de fichier non supporté: ${file.name}`)
       }
@@ -156,7 +155,6 @@ export default function UploadPage() {
       const result = await response.json().catch(() => ({}))
 
       // Step 5: Save to database
-      console.log('💾 Saving to database...')
 
       // Updated section for PDF processing in upload page
 // Replace lines 162-217 in src/app/(dashboard)/upload/page.tsx
@@ -165,18 +163,15 @@ export default function UploadPage() {
       
       if (apiEndpoint === '/api/process-excel') {
         // Excel processing - already handles multiple statements
-        console.log('📊 Excel processing complete')
         
         // Excel route already saves to database, so we're done
         const savedCount = result.saved_statements?.length || 0
-        console.log(`✅ ${savedCount} statement(s) saved from Excel`)
         
       } else {
         // PDF processing - now handles MULTIPLE statements
         const statements = result.data.statements || []
         const companyName = result.data.company_name
         
-        console.log(`📄 Processing ${statements.length} statement(s) from PDF...`)
         
         let savedCount = 0
         const savedIds: string[] = []
@@ -207,18 +202,14 @@ export default function UploadPage() {
             
             if (saveResponse.ok) {
               const saveResult = await saveResponse.json()
-              console.log(`✅ Saved ${statement.statement_type}:`, saveResult.statement_id)
               savedIds.push(saveResult.statement_id)
               savedCount++
             } else {
-              console.warn(`⚠️ Failed to save ${statement.statement_type}`)
             }
           } catch (saveError) {
-            console.error(`❌ Error saving ${statement.statement_type}:`, saveError)
           }
         }
         
-        console.log(`💾 Saved ${savedCount}/${statements.length} statements to database`)
       }
 
       // Complete progress
@@ -228,32 +219,21 @@ export default function UploadPage() {
         return newProgress
       })
 
-      // Different success messages for Excel vs PDF
-      let successMessage = ''
+      // Show verification card with the company name
+      let uploadedCompanyName = ''
       if (apiEndpoint === '/api/process-excel') {
-        const savedCount = result.saved_statements?.length || 0
-        const totalTables = result.summary?.totalTables || 0
-        successMessage = `✅ Excel traité! ${totalTables} tableau(x) détecté(s), ${savedCount} sauvegardé(s).`
+        uploadedCompanyName = result.company_name || file.name.replace(/\.(xlsx|xls|pdf)$/i, '').replace(/[_-]/g, ' ')
       } else {
-        // PDF extraction - multi-statement support
-        const statements = result.data.statements || []
-        const company = result.data.company_name || 'Unknown'
-        const types = statements.map((s: any) => s.statement_type).join(', ')
-        successMessage = `✅ PDF traité! ${statements.length} état(s) financier(s) pour ${company}: ${types}`
+        uploadedCompanyName = result.data.company_name || file.name.replace(/\.(xlsx|xls|pdf)$/i, '').replace(/[_-]/g, ' ')
       }
+      setVerificationCompany(uploadedCompanyName)
+      setNotification(null)
 
-      setNotification({
-        type: 'success',
-        message: successMessage
-      })
-
-      console.log('📊 Processing complete:', result)
 
       // Auto-remove after 3 seconds
       setTimeout(() => removeFile(index), 3000)
 
     } catch (error: any) {
-      console.error('Processing error:', error)
       
       setNotification({
         type: 'error',
@@ -333,6 +313,49 @@ export default function UploadPage() {
               {notification.message}
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Post-upload verification card */}
+        {verificationCompany && (
+          <Card className="border-emerald-200 bg-emerald-50">
+            <CardContent className="p-5">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-emerald-900 mb-0.5">{verificationCompany} — données importées</p>
+                  <p className="text-sm text-emerald-700 mb-3">
+                    Vérifiez et corrigez les données extraites dans chaque tableau avant de lancer les rapports.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'États Actifs', href: `/actifs?company=${encodeURIComponent(verificationCompany)}` },
+                      { label: 'États Passifs', href: `/passifs?company=${encodeURIComponent(verificationCompany)}` },
+                      { label: 'Compte de Résultats', href: `/compte-resultats?company=${encodeURIComponent(verificationCompany)}` },
+                      { label: 'Hors Bilan', href: `/hors-bilan?company=${encodeURIComponent(verificationCompany)}` },
+                    ].map(({ label, href }) => (
+                      <Button
+                        key={label}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push(href)}
+                        className="border-emerald-300 text-emerald-800 hover:bg-emerald-100 h-7 px-3 text-xs"
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setVerificationCompany(null)}
+                  className="shrink-0 -mt-1 -mr-1 h-7 w-7 text-emerald-600 hover:bg-emerald-100"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Institution Type Selector */}

@@ -21,8 +21,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('📄 Extracting data from PDF:', file_url)
-    console.log('🏦 Institution type:', institution_type)
 
     // Step 1: Fetch the PDF file
     const response = await fetch(file_url)
@@ -33,7 +31,6 @@ export async function POST(request: NextRequest) {
     const pdfBuffer = await response.arrayBuffer()
     const base64Pdf = Buffer.from(pdfBuffer).toString('base64')
 
-    console.log('📦 PDF size:', (pdfBuffer.byteLength / 1024).toFixed(2), 'KB')
 
     // Step 2: Create extraction prompt for MULTIPLE statements
     const extractionPrompt = `Tu es un expert comptable spécialisé dans l'analyse d'états financiers ${institution_type === 'banque' ? 'bancaires' : 'de microfinance'}.
@@ -99,7 +96,6 @@ IMPORTANT: Retourne TOUS les états financiers trouvés dans le PDF, pas seuleme
 Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
 
     // Step 3: Call Claude API
-    console.log('🤖 Calling Claude API...')
     
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -125,8 +121,6 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
       ],
     })
 
-    console.log('✅ Claude API response received')
-    console.log('Usage:', message.usage)
 
     // Step 4: Parse response
     const textContent = message.content.find((block) => block.type === 'text')
@@ -135,7 +129,6 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
     }
 
     const rawResponse = textContent.text
-    console.log('📝 Raw response length:', rawResponse.length)
 
     // Extract JSON from response (handle markdown code blocks)
     let jsonStr = rawResponse.trim()
@@ -147,7 +140,6 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
     try {
       parsedData = JSON.parse(jsonStr)
     } catch (parseError) {
-      console.error('Failed to parse JSON:', jsonStr.substring(0, 500))
       throw new Error('Invalid JSON response from Claude API')
     }
 
@@ -157,12 +149,8 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
     }
 
     // Log extraction results
-    console.log('🎯 Extraction complete:')
-    console.log(`  - Company: ${parsedData.company_name}`)
-    console.log(`  - Statements found: ${parsedData.statements.length}`)
     
     for (const statement of parsedData.statements) {
-      console.log(`  - ${statement.statement_type}: ${statement.line_items?.length || 0} lines, ${statement.periods?.length || 0} periods`)
     }
 
     return NextResponse.json({
@@ -180,7 +168,6 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
     })
 
   } catch (error: any) {
-    console.error('❌ Extraction error:', error)
     return NextResponse.json(
       {
         error: error.message || 'Failed to extract data',

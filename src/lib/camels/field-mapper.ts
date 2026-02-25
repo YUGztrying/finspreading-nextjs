@@ -2,7 +2,7 @@
 // Maps line_items[].poste codes from financial_statements into a flat
 // FinancialData dict that the CAMELS calculator can consume.
 
-import { LineItem } from '@/types/database.types'
+import { LineItem, PeriodMapping } from '@/types/database.types'
 import { FinancialData } from './types'
 
 // ─── Bank poste → CAMELS field mapping ──────────────────────────────────────
@@ -129,16 +129,42 @@ function computeDerivedFields(data: Record<string, number>): void {
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 /**
+ * Resolve the period index for a statement, returning -1 if not found.
+ */
+function findPeriodIdx(stmt: { periods: string[] } | undefined, periodDate: string | null): number {
+  if (!stmt || !periodDate) return -1
+  return stmt.periods.indexOf(periodDate)
+}
+
+/** Empty mapping — all zeros */
+function emptyMapping(map: Record<string, string | string[]>): Record<string, number> {
+  const result: Record<string, number> = {}
+  for (const field of Object.keys(map)) result[field] = 0
+  return result
+}
+
+/**
  * Extract financial data for a given period from all statement types.
  *
- * @param statements - Map of statement_type → { line_items, periods }
- * @param periodDate - The period to extract (ISO date string, e.g. "2023-12-31")
+ * When `periodOverrides` is provided (from user-confirmed period mappings),
+ * each statement type uses its own lookup period.  When not provided, the
+ * single `periodDate` is used for all types — but if a statement doesn't
+ * contain that period, zeros are returned (no silent fallback to index 0).
+ *
+ * @param statements      - Map of statement_type → { line_items, periods }
+ * @param periodDate      - Default period to look up (ISO date string)
  * @param institutionType - 'banque' or 'microfinance'
+ * @param periodOverrides - Optional per-statement-type period dates
  */
 export function extractFinancialData(
   statements: Record<string, { line_items: LineItem[]; periods: string[] }>,
   periodDate: string,
-  institutionType: 'banque' | 'microfinance'
+  institutionType: 'banque' | 'microfinance',
+  periodOverrides?: {
+    bs_period?: string | null
+    is_period?: string | null
+    hb_period?: string | null
+  }
 ): FinancialData {
   const isBank = institutionType === 'banque'
 
@@ -151,20 +177,31 @@ export function extractFinancialData(
   const passifsIdx = passifs ? buildPosteIndex(passifs.line_items) : new Map()
   const crIdx = cr ? buildPosteIndex(cr.line_items) : new Map()
 
-  // Find the period index in each statement's period array
-  const actifsPeriodIdx = actifs?.periods?.indexOf(periodDate) ?? -1
-  const passifsPeriodIdx = passifs?.periods?.indexOf(periodDate) ?? -1
-  const crPeriodIdx = cr?.periods?.indexOf(periodDate) ?? -1
+  // Determine which period to look up in each statement type
+  const bsLookup = periodOverrides?.bs_period ?? periodDate
+  const isLookup = periodOverrides?.is_period ?? periodDate
+
+  // Find the period index — returns -1 if not found (no silent fallback)
+  const actifsPeriodIdx = findPeriodIdx(actifs, bsLookup)
+  const passifsPeriodIdx = findPeriodIdx(passifs, bsLookup)
+  const crPeriodIdx = findPeriodIdx(cr, isLookup)
 
   // Apply the right mapping for the institution type
   const assetMap = isBank ? BANK_ASSET_MAP : MFI_ASSET_MAP
   const liabilityMap = isBank ? BANK_LIABILITY_MAP : MFI_LIABILITY_MAP
   const incomeMap = isBank ? BANK_INCOME_MAP : MFI_INCOME_MAP
 
+  // If period not found → zeros for that category (no silent mismatch)
   const result: Record<string, number> = {
-    ...applyMapping(assetMap, actifsIdx, actifsPeriodIdx >= 0 ? actifsPeriodIdx : 0),
-    ...applyMapping(liabilityMap, passifsIdx, passifsPeriodIdx >= 0 ? passifsPeriodIdx : 0),
-    ...applyMapping(incomeMap, crIdx, crPeriodIdx >= 0 ? crPeriodIdx : 0),
+    ...(actifsPeriodIdx >= 0
+      ? applyMapping(assetMap, actifsIdx, actifsPeriodIdx)
+      : emptyMapping(assetMap)),
+    ...(passifsPeriodIdx >= 0
+      ? applyMapping(liabilityMap, passifsIdx, passifsPeriodIdx)
+      : emptyMapping(liabilityMap)),
+    ...(crPeriodIdx >= 0
+      ? applyMapping(incomeMap, crIdx, crPeriodIdx)
+      : emptyMapping(incomeMap)),
   }
 
   // Default zeros for fields not in the mapping

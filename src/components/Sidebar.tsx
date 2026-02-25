@@ -22,16 +22,35 @@ interface NavItem {
   icon: React.ElementType
 }
 
-const navigationItems: NavItem[] = [
-  { title: 'Tableau de Bord', href: '/dashboard', icon: LayoutDashboard },
-  { title: 'Télécharger Documents', href: '/upload', icon: Upload },
-  { title: 'États Actifs', href: '/actifs', icon: TrendingUp },
-  { title: 'États Passifs', href: '/passifs', icon: PieChart },
-  { title: 'Hors Bilan', href: '/hors-bilan', icon: FileSpreadsheet },
-  { title: 'Compte de Résultats', href: '/compte-resultats', icon: BarChart3 },
-  { title: 'Rapport IRP', href: '/rapport-irp', icon: FileText },
-  { title: 'Analyse CAMELS', href: '/camels', icon: Shield },
-  { title: 'Export Complet', href: '/export', icon: Download },
+interface NavGroup {
+  label?: string
+  items: NavItem[]
+}
+
+const navGroups: NavGroup[] = [
+  {
+    items: [
+      { title: 'Tableau de Bord', href: '/dashboard', icon: LayoutDashboard },
+      { title: 'Télécharger Documents', href: '/upload', icon: Upload },
+    ],
+  },
+  {
+    label: 'Données',
+    items: [
+      { title: 'États Actifs', href: '/actifs', icon: TrendingUp },
+      { title: 'États Passifs', href: '/passifs', icon: PieChart },
+      { title: 'Compte de Résultats', href: '/compte-resultats', icon: BarChart3 },
+      { title: 'Hors Bilan', href: '/hors-bilan', icon: FileSpreadsheet },
+    ],
+  },
+  {
+    label: 'Analyses',
+    items: [
+      { title: 'Rapport IRP', href: '/rapport-irp', icon: FileText },
+      { title: 'Analyse CAMELS', href: '/camels', icon: Shield },
+      { title: 'Export Complet', href: '/export', icon: Download },
+    ],
+  },
 ]
 
 export function Sidebar() {
@@ -57,38 +76,40 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="p-3 flex-1 overflow-y-auto">
-        <div className="mb-2">
-          <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-2 px-3">
-            Navigation
-          </p>
-        </div>
-
-        <ul className="space-y-1">
-          {navigationItems.map((item) => {
-            const isActive = pathname === item.href
-            const Icon = item.icon
-
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg
-                    transition-all duration-300
-                    ${isActive 
-                      ? 'bg-amber-50 text-amber-700 shadow-sm border border-amber-100' 
-                      : 'text-stone-600 hover:bg-amber-50 hover:text-amber-700'
-                    }
-                  `}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span>{item.title}</span>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
+      <nav className="p-3 flex-1 overflow-y-auto space-y-4">
+        {navGroups.map((group, gi) => (
+          <div key={gi}>
+            {group.label && (
+              <p className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-1 px-3">
+                {group.label}
+              </p>
+            )}
+            <ul className="space-y-1">
+              {group.items.map((item) => {
+                const isActive = pathname === item.href
+                const Icon = item.icon
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={`
+                        flex items-center gap-3 px-3 py-2.5 rounded-lg
+                        transition-all duration-300
+                        ${isActive
+                          ? 'bg-amber-50 text-amber-700 shadow-sm border border-amber-100'
+                          : 'text-stone-600 hover:bg-amber-50 hover:text-amber-700'
+                        }
+                      `}
+                    >
+                      <Icon className="w-5 h-5 flex-shrink-0" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
     </aside>
   )

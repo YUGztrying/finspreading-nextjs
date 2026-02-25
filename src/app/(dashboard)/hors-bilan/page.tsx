@@ -1,8 +1,8 @@
 // src/app/(dashboard)/hors-bilan/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,8 +30,9 @@ interface FinancialStatement {
   updated_at: string
 }
 
-export default function HorsBilanPage() {
+function HorsBilanPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [companies, setCompanies] = useState<string[]>([])
@@ -68,7 +69,9 @@ export default function HorsBilanPage() {
 
         if (result.companies && result.companies.length > 0) {
           setCompanies(result.companies)
-          setSelectedCompany(result.companies[0])
+          const paramCompany = searchParams.get('company')
+          const initial = (paramCompany && result.companies.includes(paramCompany)) ? paramCompany : result.companies[0]
+          setSelectedCompany(initial)
         } else {
           setNotification({
             type: 'info',
@@ -76,7 +79,6 @@ export default function HorsBilanPage() {
           })
         }
       } catch (error: any) {
-        console.error('Error fetching companies:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement des données'
@@ -117,7 +119,6 @@ export default function HorsBilanPage() {
           setStatement(null)
         }
       } catch (error: any) {
-        console.error('Error fetching statement:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement de l\'état'
@@ -164,7 +165,6 @@ export default function HorsBilanPage() {
       setTimeout(() => setNotification(null), 3000)
 
     } catch (error: any) {
-      console.error('Save error:', error)
       setNotification({
         type: 'error',
         message: error.message || 'Erreur lors de l\'enregistrement'
@@ -318,4 +318,8 @@ export default function HorsBilanPage() {
       </main>
     </div>
   )
+}
+
+export default function HorsBilanPage() {
+  return <Suspense fallback={null}><HorsBilanPageContent /></Suspense>
 }

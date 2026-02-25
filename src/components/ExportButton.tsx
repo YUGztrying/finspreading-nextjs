@@ -18,7 +18,6 @@ export default function ExportButton({ companyName, userId }: ExportButtonProps)
     setError(null)
 
     try {
-      console.log('📊 Starting export for:', companyName)
 
       const response = await fetch('/api/statements/export', {
         method: 'POST',
@@ -50,9 +49,7 @@ export default function ExportButton({ companyName, userId }: ExportButtonProps)
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
 
-      console.log('✅ Export successful:', filename)
     } catch (err) {
-      console.error('❌ Export error:', err)
       setError(err instanceof Error ? err.message : 'Export failed')
     } finally {
       setIsExporting(false)

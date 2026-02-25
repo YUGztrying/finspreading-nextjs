@@ -25,46 +25,29 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      console.log('🔐 Starting login process...')
-      console.log('📧 Email:', email)
       
       const supabase = createClient()
-      console.log('✅ Supabase client created')
       
-      console.log('📡 Calling signInWithPassword...')
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      console.log('📥 Response received:', { 
-        hasData: !!data, 
-        hasSession: !!data?.session,
-        hasUser: !!data?.user,
-        error: signInError 
-      })
-
       if (signInError) {
-        console.error('❌ Sign in error:', signInError)
         setError(signInError.message)
         return
       }
 
       if (data.session) {
-        console.log('✅ Session created successfully')
-        console.log('🔄 Redirecting to dashboard...')
         router.push('/dashboard')
         router.refresh()
       } else {
-        console.warn('⚠️ No session returned')
         setError('No session returned from server')
       }
     } catch (err: any) {
-      console.error('❌ Catch block error:', err)
       setError(err.message || 'An error occurred during login')
     } finally {
       setLoading(false)
-      console.log('🏁 Login process finished')
     }
   }
 

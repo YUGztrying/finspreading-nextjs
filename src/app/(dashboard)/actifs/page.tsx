@@ -1,8 +1,8 @@
 // src/app/(dashboard)/actifs/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,8 +33,9 @@ interface FinancialStatement {
   updated_at: string
 }
 
-export default function ActifsPage() {
+function ActifsPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [companies, setCompanies] = useState<string[]>([])
@@ -73,7 +74,9 @@ export default function ActifsPage() {
 
         if (result.companies && result.companies.length > 0) {
           setCompanies(result.companies)
-          setSelectedCompany(result.companies[0])
+          const paramCompany = searchParams.get('company')
+          const initial = (paramCompany && result.companies.includes(paramCompany)) ? paramCompany : result.companies[0]
+          setSelectedCompany(initial)
         } else {
           setNotification({
             type: 'info',
@@ -81,7 +84,6 @@ export default function ActifsPage() {
           })
         }
       } catch (error: any) {
-        console.error('Error fetching companies:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement des données'
@@ -139,7 +141,6 @@ export default function ActifsPage() {
         }
 
       } catch (error: any) {
-        console.error('Error fetching statements:', error)
         setNotification({
           type: 'error',
           message: error.message || 'Erreur lors du chargement de l\'état'
@@ -173,7 +174,6 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
 
   // Refresh data after rename
   const handleRenameSuccess = async () => {
-    console.log('🔄 Starting refresh after rename...')
     
     setNotification({
       type: 'success',
@@ -183,19 +183,16 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
     setLoading(true)
 
     try {
-      console.log('📡 Fetching updated companies list...')
       const response = await fetch(
         `/api/statements/list?user_id=${userId}&statement_type=actifs`
       )
 
       if (response.ok) {
         const result = await response.json()
-        console.log('📊 Fetched companies:', result.companies)
         
         if (result.companies && result.companies.length > 0) {
           setCompanies(result.companies)
           const firstCompany = result.companies[0]
-          console.log('✅ Setting selected company to:', firstCompany)
           setSelectedCompany(firstCompany)
           
           // Fetch actifs
@@ -224,7 +221,6 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
         }
       }
     } catch (error) {
-      console.error('❌ Error refreshing companies:', error)
     } finally {
       setLoading(false)
     }
@@ -267,7 +263,6 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
       setTimeout(() => setNotification(null), 3000)
 
     } catch (error: any) {
-      console.error('Save error:', error)
       setNotification({
         type: 'error',
         message: error.message || 'Erreur lors de l\'enregistrement'
@@ -457,4 +452,8 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
       </main>
     </div>
   )
+}
+
+export default function ActifsPage() {
+  return <Suspense fallback={null}><ActifsPageContent /></Suspense>
 }

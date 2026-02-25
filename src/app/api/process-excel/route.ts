@@ -217,16 +217,13 @@ function extractPeriods(headers: string[]): string[] {
 }
 
 export async function POST(request: NextRequest) {
-  console.log('🚀 ===== PROCESS EXCEL ROUTE CALLED =====')
   
   try {
     const body = await request.json()
     const { file_url, institution_type = 'banque', user_id, company_name } = body
 
-    console.log('📥 Request body:', { file_url, institution_type, user_id, company_name })
 
     if (!file_url) {
-      console.log('❌ Missing file_url')
       return NextResponse.json(
         { error: 'file_url is required' },
         { status: 400 }
@@ -234,14 +231,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (!user_id) {
-      console.log('❌ Missing user_id')
       return NextResponse.json(
         { error: 'user_id is required' },
         { status: 400 }
       )
     }
 
-    console.log('📊 Processing Excel file:', file_url)
 
     // Fetch file from URL
     const response = await fetch(file_url)
@@ -260,22 +255,18 @@ export async function POST(request: NextRequest) {
     const savedStatements: string[] = []
 
     for (const sheetName of workbook.SheetNames) {
-      console.log(`\n🔄 Processing sheet: ${sheetName}`)
 
       try {
         const worksheet = workbook.Sheets[sheetName]
         if (!worksheet) {
-          console.log(`⚠️ Sheet ${sheetName} is empty or could not be read`)
           continue
         }
 
         // Extract raw data including all rows
         const rawDataFull = XLSX.utils.sheet_to_json(worksheet, { defval: null, header: 1 }) as any[][]
 
-        console.log(`📋 Sheet ${sheetName}: ${rawDataFull.length} total rows detected`)
 
         if (!rawDataFull || rawDataFull.length === 0) {
-          console.log(`⚠️ No data in sheet ${sheetName}`)
           continue
         }
 
@@ -287,14 +278,12 @@ export async function POST(request: NextRequest) {
             const firstCell = String(row[0] || '').toUpperCase()
             if (firstCell.includes('CODE') && (firstCell.includes('POSTE') || firstCell === 'CODE POSTE')) {
               headerRowIndex = i
-              console.log(`🎯 Found header row at index ${i}:`, row)
               break
             }
           }
         }
 
         if (headerRowIndex === -1) {
-          console.log(`⚠️ No header row found in sheet ${sheetName}`)
           continue
         }
 
@@ -305,8 +294,6 @@ export async function POST(request: NextRequest) {
         
         const dataRows = rawDataFull.slice(headerRowIndex + 1)
 
-        console.log(`📝 Headers:`, headers)
-        console.log(`📋 Data rows: ${dataRows.length}`)
 
         // Convert to object format
         const rawData = dataRows
@@ -319,10 +306,8 @@ export async function POST(request: NextRequest) {
             return obj
           })
 
-        console.log(`📋 After filtering: ${rawData.length} data rows`)
         
         if (rawData.length === 0) {
-          console.log(`⚠️ No valid data rows in sheet ${sheetName}`)
           continue
         }
 
@@ -334,7 +319,6 @@ export async function POST(request: NextRequest) {
 
             // Skip metadata sheets
             if (candidateType === 'metadata' || candidateType === 'unknown') {
-              console.log(`⏭️  Skipping non-financial sheet: ${sheetName}`)
               continue
             }
 
@@ -342,9 +326,7 @@ export async function POST(request: NextRequest) {
             const lineItems = convertToLineItems(cleanedData, institution_type)
 
             // 🔍 DEBUG: Log first few line items with amounts
-            console.log(`🔍 Sample line items (first 3):`)
             lineItems.slice(0, 3).forEach((item, i) => {
-              console.log(`  [${i}] ${item.poste} - ${item.description}: amounts=[${item.amounts.join(', ')}]`)
             })
 
             // Extract periods from headers
@@ -354,7 +336,6 @@ export async function POST(request: NextRequest) {
             // 🔹 MICROFINANCE FIX: Single period financial statements
             // If no periods detected and institution is microfinance, create a default period
             if (periods.length === 0 && institution_type === 'microfinance') {
-              console.log(`📅 No periods detected for microfinance, extracting date from filename`)
               
               // Extract date from filename (formats: DD-MM-YYYY, YYYY-MM-DD, DDMMYYYY)
               const datePatterns = [
@@ -394,10 +375,8 @@ export async function POST(request: NextRequest) {
               // Fallback to current date
               if (!extractedDate) {
                 extractedDate = new Date().toISOString().split('T')[0]
-                console.log(`⚠️ No date found in filename, using current date`)
               }
               
-              console.log(`📅 Extracted date: ${extractedDate} from filename: ${filename}`)
               
               // Parse the date
               const [year, month, day] = extractedDate.split('-').map(Number)
@@ -405,16 +384,13 @@ export async function POST(request: NextRequest) {
               // Store period as simple date string for easier frontend handling
               periods = [extractedDate]  // Just "2024-12-31"
               
-              console.log(`📅 Created default period: ${extractedDate}`)
             }
 
             if (periods.length === 0) {
-              console.warn(`⚠️ No periods detected in sheet ${sheetName}, skipping`)
               continue
             }
 
             // Normalize line items BEFORE saving
-            console.log(`🔄 Normalizing line items...`)
             
             const normalizeResult = normalizeFinancialLines(lineItems, {
               institutionType: institution_type,
@@ -425,15 +401,11 @@ export async function POST(request: NextRequest) {
             
             const normalizedLineItems = normalizeResult.normalizedLines
             
-            console.log(`✅ Normalized ${normalizedLineItems.length} line items`)
-            console.log(`🔍 Sample normalized codes:`, normalizedLineItems.slice(0, 3).map(i => i.poste))
             
             if (normalizeResult.unmappedLines.length > 0) {
-              console.log(`⚠️ Found ${normalizeResult.unmappedLines.length} unmapped lines`)
             }
 
             // Save to database
-            console.log(`💾 Saving to database...`)
             const saveResult = await saveFinancialStatement(
               {
                 company_name: company_name || 'Unknown Company',
@@ -447,10 +419,8 @@ export async function POST(request: NextRequest) {
             )
 
             if (saveResult.success) {
-              console.log(`✅ Saved ${candidateType} successfully:`, saveResult.statement_id)
               savedStatements.push(saveResult.statement_id!)
             } else {
-              console.error(`❌ Failed to save ${candidateType}:`, saveResult.error)
             }
 
             cleanedTables.push({
@@ -462,15 +432,12 @@ export async function POST(request: NextRequest) {
               statement_id: saveResult.statement_id
             })
         } else {
-          console.log(`⚠️ No data could be extracted from sheet ${sheetName}`)
         }
 
       } catch (sheetError) {
-        console.error(`Error processing sheet ${sheetName}:`, sheetError)
       }
     }
 
-    console.log(`\n🎯 FINAL RESULT: ${cleanedTables.length} statements processed, ${savedStatements.length} saved`)
 
     if (cleanedTables.length === 0) {
       throw new Error(
@@ -496,7 +463,6 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
-    console.error('❌ Excel processing error:', error)
     return NextResponse.json(
       {
         error: error.message,

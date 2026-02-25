@@ -85,9 +85,6 @@ export function normalizeFinancialLines(
   const normalizeFunction = getNormalizeFunction()
 
   if (!normalizeFunction) {
-    console.warn(
-      `No normalization function available for ${institutionType} / ${statementType}`
-    )
     return {
       normalizedLines: lines,
       unmappedLines: [],
@@ -133,17 +130,6 @@ export function normalizeFinancialLines(
   }
 
   const mappedCount = lines.length - unmappedCollector.length
-
-  console.log(`
-📊 Normalization complete:
-  - Institution: ${institutionType}
-  - Statement: ${statementType}
-  - Total lines: ${lines.length}
-  - Mapped: ${mappedCount}
-  - Unmapped: ${unmappedCollector.length}
-  - Totals: ${totalCount}
-  - Subtotals: ${subtotalCount}
-  `)
 
   return {
     normalizedLines,

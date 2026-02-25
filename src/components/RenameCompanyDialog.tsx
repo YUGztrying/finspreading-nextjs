@@ -48,11 +48,9 @@ export default function RenameCompanyDialog({
         throw new Error(data.error || 'Erreur lors du renommage')
       }
 
-      console.log('✅ Rename success:', data)
       setIsOpen(false)
       onSuccess()
     } catch (err) {
-      console.error('❌ Rename error:', err)
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
     } finally {
       setIsLoading(false)
