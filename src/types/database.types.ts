@@ -254,3 +254,32 @@ export type IRPOverrideUpdate = Database['public']['Tables']['irp_overrides']['U
 export type IRPAlias = Database['public']['Tables']['irp_aliases']['Row']
 export type IRPAliasInsert = Database['public']['Tables']['irp_aliases']['Insert']
 export type IRPAliasUpdate = Database['public']['Tables']['irp_aliases']['Update']
+
+// ─── Period alignment types ────────────────────────────────────────────────
+
+/** A single analysis column with explicit per-statement-type period lookups. */
+export interface PeriodMapping {
+  /** Display label, e.g. "FY 2023", "H1 2024" */
+  label: string
+  /** ISO date to look up in actifs & passifs (null = no BS data for this column) */
+  bs_period: string | null
+  /** ISO date to look up in compte_resultats (null = no IS data) */
+  is_period: string | null
+  /** ISO date to look up in hors_bilan (null = no HB data) */
+  hb_period: string | null
+}
+
+/** Result of auto-detecting whether period alignment is needed. */
+export interface PeriodAlignmentInfo {
+  /** true when all statement types share identical period arrays */
+  aligned: boolean
+  /** Per-statement-type period arrays */
+  available: {
+    actifs: string[]
+    passifs: string[]
+    compte_resultats: string[]
+    hors_bilan: string[]
+  }
+  /** Auto-suggested mappings (best guess — user confirms via dialog) */
+  suggested: PeriodMapping[]
+}

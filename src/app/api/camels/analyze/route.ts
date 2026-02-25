@@ -8,11 +8,12 @@ import { extractFinancialData, getAllPeriods } from '@/lib/camels/field-mapper'
 import { runFullAnalysis } from '@/lib/camels/calculator'
 import { generateNarrative } from '@/lib/camels/narrative-generator'
 import { FinancialData } from '@/lib/camels/types'
-import { LineItem } from '@/types/database.types'
+import { LineItem, PeriodMapping } from '@/types/database.types'
 
 export async function POST(request: NextRequest) {
   try {
-    const { user_id, company_name, force_refresh = false } = await request.json()
+    const { user_id, company_name, force_refresh = false, period_mappings: rawMappings } = await request.json()
+    const periodMappings: PeriodMapping[] | null = Array.isArray(rawMappings) && rawMappings.length > 0 ? rawMappings : null
 
     if (!user_id || !company_name) {
       return NextResponse.json(
@@ -53,17 +54,12 @@ export async function POST(request: NextRequest) {
       institutionType = stmt.type_institution as 'banque' | 'microfinance'
     }
 
-    // Get all periods sorted chronologically
-    const periods = getAllPeriods(stmtsByType)
+    // ── Determine analysis periods ──────────────────────────────────────────
+    // If the caller supplied period_mappings (user-confirmed alignment),
+    // use those.  Otherwise fall back to the union of all statement periods.
+    let periods: string[]
+    let periodLabels: string[]
 
-    if (periods.length === 0) {
-      return NextResponse.json(
-        { error: 'No periods found in statements' },
-        { status: 400 }
-      )
-    }
-
-    // Run analysis for each period with previous-period lookback for averages
     const results: Array<{
       period: string
       data: FinancialData
@@ -72,18 +68,45 @@ export async function POST(request: NextRequest) {
 
     let prevData: FinancialData | null = null
 
-    for (const period of periods) {
-      const data = extractFinancialData(stmtsByType, period, institutionType)
-      const analysis = runFullAnalysis(data, prevData)
-      results.push({ period, data, analysis })
-      prevData = data
-    }
+    if (periodMappings) {
+      // User-confirmed period alignment: each mapping specifies per-type lookups
+      periods = periodMappings.map(m => m.bs_period ?? m.is_period ?? m.hb_period ?? '')
+      periodLabels = periodMappings.map(m => m.label)
 
-    // Build period labels
-    const periodLabels = periods.map(p => {
-      const d = new Date(p)
-      return `FY${String(d.getFullYear()).slice(-2)}`
-    })
+      for (const mapping of periodMappings) {
+        const canonicalPeriod = mapping.bs_period ?? mapping.is_period ?? mapping.hb_period ?? ''
+        const data = extractFinancialData(stmtsByType, canonicalPeriod, institutionType, {
+          bs_period: mapping.bs_period,
+          is_period: mapping.is_period,
+          hb_period: mapping.hb_period,
+        })
+        const analysis = runFullAnalysis(data, prevData)
+        results.push({ period: canonicalPeriod, data, analysis })
+        prevData = data
+      }
+    } else {
+      // No explicit mappings — use union of all periods (backward compatible)
+      periods = getAllPeriods(stmtsByType)
+
+      if (periods.length === 0) {
+        return NextResponse.json(
+          { error: 'No periods found in statements' },
+          { status: 400 }
+        )
+      }
+
+      periodLabels = periods.map(p => {
+        const d = new Date(p)
+        return `FY${String(d.getFullYear()).slice(-2)}`
+      })
+
+      for (const period of periods) {
+        const data = extractFinancialData(stmtsByType, period, institutionType)
+        const analysis = runFullAnalysis(data, prevData)
+        results.push({ period, data, analysis })
+        prevData = data
+      }
+    }
 
     const latestResult = results[results.length - 1]
 

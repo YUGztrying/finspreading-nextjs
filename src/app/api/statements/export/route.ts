@@ -12,7 +12,7 @@ import {
 import { calculateAllLines } from '@/lib/irp/calculator'
 import { extractFinancialData, getAllPeriods } from '@/lib/camels/field-mapper'
 import { runFullAnalysis } from '@/lib/camels/calculator'
-import { LineItem } from '@/types/database.types'
+import { LineItem, PeriodMapping } from '@/types/database.types'
 
 // ─── colours ─────────────────────────────────────────────────────────────────
 const C = {
@@ -262,12 +262,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const camPeriods = getAllPeriods(stmtsByType)
+    // ── Load saved period mappings (if any) ──
+    const { data: pmRow } = await supabase
+      .from('period_mappings')
+      .select('mappings')
+      .eq('user_id', user_id)
+      .eq('company_name', company_name)
+      .maybeSingle()
+
+    const savedMappings: PeriodMapping[] | null =
+      pmRow?.mappings && Array.isArray(pmRow.mappings) && pmRow.mappings.length > 0
+        ? (pmRow.mappings as PeriodMapping[])
+        : null
+
+    const camPeriods = savedMappings
+      ? savedMappings.map(m => m.bs_period ?? m.is_period ?? m.hb_period ?? '')
+      : getAllPeriods(stmtsByType)
 
     if (camPeriods.length > 0) {
       const camSheet = workbook.addWorksheet('CAMELS')
 
-      // ── Compute analysis results ──
+      // ── Compute analysis results (uses period mappings when available) ──
       const camResults: Array<{
         period: string
         data: ReturnType<typeof extractFinancialData>
@@ -275,11 +290,26 @@ export async function POST(request: NextRequest) {
       }> = []
 
       let prevData: ReturnType<typeof extractFinancialData> | null = null
-      for (const p of camPeriods) {
-        const data = extractFinancialData(stmtsByType, p, institutionType as 'banque' | 'microfinance')
-        const analysis = runFullAnalysis(data, prevData)
-        camResults.push({ period: p, data, analysis })
-        prevData = data
+
+      if (savedMappings) {
+        for (const mapping of savedMappings) {
+          const canonicalPeriod = mapping.bs_period ?? mapping.is_period ?? mapping.hb_period ?? ''
+          const data = extractFinancialData(stmtsByType, canonicalPeriod, institutionType as 'banque' | 'microfinance', {
+            bs_period: mapping.bs_period,
+            is_period: mapping.is_period,
+            hb_period: mapping.hb_period,
+          })
+          const analysis = runFullAnalysis(data, prevData)
+          camResults.push({ period: canonicalPeriod, data, analysis })
+          prevData = data
+        }
+      } else {
+        for (const p of camPeriods) {
+          const data = extractFinancialData(stmtsByType, p, institutionType as 'banque' | 'microfinance')
+          const analysis = runFullAnalysis(data, prevData)
+          camResults.push({ period: p, data, analysis })
+          prevData = data
+        }
       }
 
       // ── Fetch analyst overrides (CAR + NPL Amount) — same source as CAMELS page ──
@@ -310,7 +340,9 @@ export async function POST(request: NextRequest) {
         return nplAmt != null && nplAmt !== 0 && llp != null ? Math.abs(llp) / nplAmt : null
       })
 
-      const camLabels = camPeriods.map(fmtPeriod)
+      const camLabels = savedMappings
+        ? savedMappings.map(m => m.label)
+        : camPeriods.map(fmtPeriod)
       const nCols = camPeriods.length  // number of period columns
 
       // ── Helpers ──

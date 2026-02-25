@@ -1,7 +1,7 @@
 // src/app/(dashboard)/camels/page.tsx
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,9 @@ import { ArrowLeft, Loader2, BarChart3, Play } from 'lucide-react'
 import ScoreCard from '@/components/camels/ScoreCard'
 import RatioTable from '@/components/camels/RatioTable'
 import CompositeGauge from '@/components/camels/CompositeGauge'
+import PeriodAlignmentDialog from '@/components/camels/PeriodAlignmentDialog'
+import { detectPeriodAlignment, generateAlignedMappings } from '@/lib/camels/period-alignment'
+import type { PeriodMapping, PeriodAlignmentInfo } from '@/types/database.types'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -87,6 +90,11 @@ function CAMELSPageContent() {
   const [overrides, setOverrides] = useState<Overrides>({})
   const [error, setError] = useState<string | null>(null)
 
+  // Period alignment state
+  const [alignmentInfo, setAlignmentInfo] = useState<PeriodAlignmentInfo | null>(null)
+  const [showAlignmentDialog, setShowAlignmentDialog] = useState(false)
+  const [confirmedMappings, setConfirmedMappings] = useState<PeriodMapping[] | null>(null)
+
   // Fetch user and companies on mount
   useEffect(() => {
     const fetchData = async () => {
@@ -123,8 +131,8 @@ function CAMELSPageContent() {
     fetchData()
   }, [router])
 
-  // Run CAMELS analysis — then immediately load any saved overrides (all periods)
-  const runAnalysis = async (forceRefresh = false) => {
+  // ── Run CAMELS analysis with optional period mappings ─────────────────────
+  const runAnalysis = useCallback(async (forceRefresh = false, mappings?: PeriodMapping[] | null) => {
     if (!selectedCompany || !userId) return
 
     setAnalyzing(true)
@@ -135,10 +143,17 @@ function CAMELSPageContent() {
     }
 
     try {
+      const body: Record<string, unknown> = {
+        user_id: userId,
+        company_name: selectedCompany,
+        force_refresh: forceRefresh,
+      }
+      if (mappings) body.period_mappings = mappings
+
       const response = await fetch('/api/camels/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, company_name: selectedCompany, force_refresh: forceRefresh }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -162,12 +177,99 @@ function CAMELSPageContent() {
     } finally {
       setAnalyzing(false)
     }
+  }, [selectedCompany, userId])
+
+  // ── Check period alignment before running analysis ────────────────────────
+  const checkAlignmentAndAnalyze = useCallback(async (forceRefresh = false) => {
+    if (!selectedCompany || !userId) return
+
+    setAnalyzing(true)
+    setError(null)
+    if (forceRefresh) {
+      setResult(null)
+      setOverrides({})
+      setConfirmedMappings(null)
+    }
+
+    try {
+      const supabase = createClient() as any
+
+      // 1. Fetch statements to detect alignment
+      const { data: statements } = await supabase
+        .from('financial_statements')
+        .select('statement_type, periods')
+        .eq('user_id', userId)
+        .eq('company_name', selectedCompany)
+
+      if (!statements || statements.length === 0) {
+        // Let the analyze route return the 404
+        await runAnalysis(forceRefresh)
+        return
+      }
+
+      const stmtsByType: Record<string, { periods: string[] }> = {}
+      for (const s of statements) {
+        stmtsByType[s.statement_type] = { periods: s.periods as string[] }
+      }
+
+      const info = detectPeriodAlignment(stmtsByType)
+      setAlignmentInfo(info)
+
+      if (info.aligned) {
+        // All periods match — proceed directly (no dialog needed)
+        const allPeriods = [...new Set(Object.values(stmtsByType).flatMap(s => s.periods))].sort(
+          (a, b) => new Date(a).getTime() - new Date(b).getTime()
+        )
+        const trivialMappings = generateAlignedMappings(allPeriods)
+        setConfirmedMappings(trivialMappings)
+        setAnalyzing(false)
+        await runAnalysis(forceRefresh)
+        return
+      }
+
+      // 2. Not aligned — check for previously saved mappings
+      const saved = await fetch(
+        `/api/period-mappings?user_id=${encodeURIComponent(userId)}&company_name=${encodeURIComponent(selectedCompany)}`
+      )
+      if (saved.ok) {
+        const { mappings } = await saved.json()
+        if (mappings && mappings.length > 0) {
+          setConfirmedMappings(mappings)
+          setAnalyzing(false)
+          await runAnalysis(forceRefresh, mappings)
+          return
+        }
+      }
+
+      // 3. No saved mappings — show dialog
+      setAnalyzing(false)
+      setShowAlignmentDialog(true)
+    } catch (err: any) {
+      setError(err.message)
+      setAnalyzing(false)
+    }
+  }, [selectedCompany, userId, runAnalysis])
+
+  // ── Handle dialog confirmation ────────────────────────────────────────────
+  const handleAlignmentConfirm = async (mappings: PeriodMapping[]) => {
+    setShowAlignmentDialog(false)
+    setConfirmedMappings(mappings)
+
+    // Save to DB for future use
+    fetch('/api/period-mappings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, company_name: selectedCompany, mappings }),
+    }).catch(console.error)
+
+    // Now run analysis with the confirmed mappings
+    await runAnalysis(false, mappings)
   }
 
   // Auto-load when company + user are ready
   useEffect(() => {
     if (selectedCompany && userId) {
-      runAnalysis(false)
+      checkAlignmentAndAnalyze(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCompany, userId])
@@ -278,6 +380,16 @@ function CAMELSPageContent() {
 
   return (
     <div className="min-h-screen bg-stone-50">
+      {/* Period alignment dialog */}
+      {alignmentInfo && (
+        <PeriodAlignmentDialog
+          open={showAlignmentDialog}
+          onClose={() => setShowAlignmentDialog(false)}
+          alignmentInfo={alignmentInfo}
+          onConfirm={handleAlignmentConfirm}
+        />
+      )}
+
       {/* Header */}
       <header className="border-b border-stone-200 bg-white sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -299,7 +411,7 @@ function CAMELSPageContent() {
           </div>
 
           <div className="flex items-center gap-3 mt-4">
-            <Select value={selectedCompany} onValueChange={v => { setSelectedCompany(v); setResult(null); setOverrides({}) }}>
+            <Select value={selectedCompany} onValueChange={v => { setSelectedCompany(v); setResult(null); setOverrides({}); setConfirmedMappings(null); setAlignmentInfo(null) }}>
               <SelectTrigger className="w-[340px] border-stone-200">
                 <SelectValue placeholder="Select a company" />
               </SelectTrigger>
@@ -318,7 +430,7 @@ function CAMELSPageContent() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => runAnalysis(true)}
+                  onClick={() => checkAlignmentAndAnalyze(true)}
                   disabled={analyzing}
                   className="border-stone-200 text-stone-600"
                 >
@@ -329,6 +441,18 @@ function CAMELSPageContent() {
                   )}
                 </Button>
               </>
+            )}
+
+            {/* Show "Edit alignment" button when there are confirmed non-trivial mappings */}
+            {confirmedMappings && alignmentInfo && !alignmentInfo.aligned && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAlignmentDialog(true)}
+                className="text-xs text-amber-600 hover:text-amber-700"
+              >
+                Edit period alignment
+              </Button>
             )}
           </div>
         </div>
