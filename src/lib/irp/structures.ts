@@ -660,7 +660,7 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
     { name: 'Operating Profit', sign: '+' },
     { name: 'P/L from Non Op. Invest. Accounted under Equity Method', sign: '+' },
     { name: 'Non Recurring Income', sign: '+' },
-    { name: 'Non Recurring Expense', sign: '+' },
+    { name: 'Non Recurring Expense', sign: '-' },
     { name: 'Other Non-operating Income & (Expenses)', sign: '+' }
   ]},
   { title: 'Tax expense', keywords: ['CR_19'] },
