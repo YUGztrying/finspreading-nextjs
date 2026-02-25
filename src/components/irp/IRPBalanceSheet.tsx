@@ -21,6 +21,7 @@ interface IRPBalanceSheetProps {
     company_name: string
     type_institution: string
     periods: string[]
+    period_labels?: string[]
     actifs: any
     passifs: any
   }
@@ -120,7 +121,7 @@ const IRPBalanceSheet = forwardRef(({ data }: IRPBalanceSheetProps, ref) => {
               <TableHead className="font-semibold text-stone-700 w-1/2">Description</TableHead>
               {data.periods.map((period, index) => (
                 <TableHead key={index} className="font-semibold text-stone-700 text-right">
-                  {format(new Date(period), 'MMM yyyy')}
+                  {data.period_labels?.[index] ?? format(new Date(period), 'MMM yyyy')}
                 </TableHead>
               ))}
             </TableRow>

@@ -1,7 +1,7 @@
 // src/lib/camels/period-alignment.ts
 // Detects whether BS and IS periods are aligned and suggests mappings.
 
-import type { PeriodMapping, PeriodAlignmentInfo } from '@/types/database.types'
+import type { PeriodMapping, PeriodAlignmentInfo, LineItem } from '@/types/database.types'
 
 type StmtPeriods = Record<string, { periods: string[] }>
 
@@ -135,5 +135,32 @@ export function generateAlignedMappings(periods: string[]): PeriodMapping[] {
     bs_period: p,
     is_period: p,
     hb_period: p,
+  }))
+}
+
+/**
+ * Rewrite a statement's line_items so that amounts[i] corresponds to the
+ * period requested by targetPeriods[i], instead of the original source order.
+ *
+ * This allows the IRP calculator (which uses direct array indexing) to work
+ * correctly when BS and IS periods don't line up 1:1.
+ *
+ * @param lineItems     - Original line items from the DB
+ * @param sourcePeriods - The statement's own periods array (e.g. actifs.periods)
+ * @param targetPeriods - One entry per output column: the ISO date to pull from
+ *                        sourcePeriods, or null if there is no data for that column
+ */
+export function reindexLineItems(
+  lineItems: LineItem[],
+  sourcePeriods: string[],
+  targetPeriods: (string | null)[]
+): LineItem[] {
+  return lineItems.map(item => ({
+    ...item,
+    amounts: targetPeriods.map(targetPeriod => {
+      if (!targetPeriod) return 0
+      const idx = sourcePeriods.indexOf(targetPeriod)
+      return idx >= 0 ? (item.amounts[idx] ?? 0) : 0
+    }),
   }))
 }

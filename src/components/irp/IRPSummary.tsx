@@ -9,6 +9,7 @@ interface IRPSummaryProps {
     company_name: string
     type_institution: string
     periods: string[]
+    period_labels?: string[]
     actifs: any
     passifs: any
     compte_resultats: any
@@ -68,7 +69,7 @@ export default function IRPSummary({ data }: IRPSummaryProps) {
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold">Statement Date</th>
                   {data.periods.map((period, index) => (
                     <th key={index} className="border border-gray-300 px-3 py-2 text-center text-sm font-semibold">
-                      {format(new Date(period), 'MM/dd/yyyy')}
+                      {data.period_labels?.[index] ?? format(new Date(period), 'MM/dd/yyyy')}
                     </th>
                   ))}
                 </tr>
@@ -107,7 +108,7 @@ export default function IRPSummary({ data }: IRPSummaryProps) {
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold">Item</th>
                   {data.periods.map((period, index) => (
                     <th key={index} className="border border-gray-300 px-3 py-2 text-center text-sm font-semibold">
-                      {format(new Date(period), 'MM/dd/yyyy')}
+                      {data.period_labels?.[index] ?? format(new Date(period), 'MM/dd/yyyy')}
                     </th>
                   ))}
                 </tr>
