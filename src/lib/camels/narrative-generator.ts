@@ -75,7 +75,7 @@ function buildDataBlock(input: NarrativeInput): string {
   lines.push('=== BALANCE SHEET ===')
   const bsKeys = ['total_assets', 'cash_and_equivalents', 'liquid_assets', 'investment_securities',
     'gross_loans', 'net_loans', 'fixed_assets', 'total_deposits', 'short_term_borrowings',
-    'long_term_debt', 'total_liabilities', 'total_equity'] as const
+    'long_term_debt', 'subordinated_debt', 'total_liabilities', 'total_equity'] as const
 
   for (const key of bsKeys) {
     const vals = input.periodData.map(p => p.data[key] ?? 0)
@@ -126,19 +126,14 @@ function buildDataBlock(input: NarrativeInput): string {
 // ─── Prompt Builder ─────────────────────────────────────────────────────────
 
 function buildPrompt(dataBlock: string): string {
-  return `You are a senior financial analyst writing a CAMELS assessment for a bank or microfinance institution.
+  return `You are a senior credit analyst writing the financial analysis section of a CAMELS assessment for a regulatory submission or credit committee.
 
-Below is the institution's financial data across multiple periods, including balance sheet, income statement, key ratios, and current CAMELS ratings.
+Below is the institution's financial data across all available periods.
 
 ${dataBlock}
 
-Write a detailed CAMELS analysis narrative. For each component, write 3-5 bullet points that:
-- Reference specific numbers and how they changed across periods (e.g., "NPL ratio improved from 8.2% in FY22 to 4.1% in FY23")
-- Compare metrics to regulatory thresholds and industry benchmarks
-- Explain the implications of the numbers for the institution's risk profile
-- Note any concerning trends or positive developments
-
-Use EXACTLY these section headers (on their own line):
+─── STRUCTURE ───────────────────────────────────────────────────────────────
+Use EXACTLY these section headers (verbatim, on their own line):
 
 **Capitalization (Rating: [status])**
 **Asset Quality (Rating: [status])**
@@ -147,11 +142,53 @@ Use EXACTLY these section headers (on their own line):
 **Liquidity (Rating: [status])**
 **Composite (Rating: [status])**
 
-Replace [status] with the actual rating status (e.g., "Satisfactory", "Strong").
+Replace [status] with the actual rating status from the data above (e.g., "Satisfactory", "Strong").
 
-For the Composite section, provide an overall assessment synthesizing all five components.
+─── CONTENT REQUIREMENTS PER SECTION ───────────────────────────────────────
+**Capitalization** — address all of the following in order:
+1. Regulatory CAR: state the value, whether it satisfies the applicable minimum, and characterize the trend (rising / declining / stable).
+2. Equity to assets: compare across periods; explain whether the movement is driven by asset growth or equity accumulation.
+3. Buffer above minimum: quantify headroom in percentage points; flag if thin or eroding.
+4. Evolution of Tier II / subordinated debt: note material changes and their effect on total capital composition.
+5. Notable changes in shareholders' equity: identify the mechanism — retained earnings, capital injection, losses, or FX impact.
 
-Write in a professional, concise tone suitable for a regulatory filing or credit committee report. Do not use any introductory preamble — start directly with the first section header.`
+**Asset Quality** — address all of the following in order:
+1. Asset structure: break down loans vs. investment securities as a share of total assets; state the strategic or structural implication.
+2. NPL ratio & trend: state values across all available periods; characterize direction and pace of change.
+3. Coverage ratio: state values; assess whether provisioning is adequate relative to NPL exposure.
+4. Stage migration: comment on whether deterioration is concentrated or broadly distributed across the portfolio.
+5. Concentration risk: identify any sectoral, geographic, or counterparty concentration implied by the data.
+
+**Management** — address:
+1. Cost-to-income ratio trend and what is driving it (expense growth vs. revenue dynamics).
+2. Expense discipline relative to operating income growth across periods.
+
+**Earnings** — address all of the following in order:
+1. Trend & sustainability: characterize net income trajectory; distinguish one-off items from structural drivers.
+2. Key drivers: identify what is driving NII, non-interest income, and provisioning charges.
+3. Volatility: assess whether earnings are stable, cyclically exposed, or structurally compressed.
+
+**Liquidity** — address all of the following in order:
+1. Funding structure: break down deposits vs. borrowings vs. other liabilities; note reliance on any single source.
+2. Deposit base stability: assess whether deposits are growing, stable, or declining.
+3. Wholesale reliance: quantify market funding as a share of total liabilities; flag structural dependency.
+4. Maturity profile: infer short- vs. long-term funding balance from loan-to-deposit ratio and borrowing composition.
+
+**Composite** — synthesize all five components in 2–3 sentences. Reference the composite rating and the two or three dominant risk factors.
+
+─── WRITING DISCIPLINE ──────────────────────────────────────────────────────
+REQUIRED — use active analytical verbs:
+driven by · supported by · mitigated by · underpinned by · constrained by · offset by · concentrated in · fully reliant on · structurally exposed to
+
+FORBIDDEN:
+- "This is good / bad because…"
+- "The bank is strong / healthy / well-positioned."
+- Narrative storytelling or historical background paragraphs.
+- Any claim without a number or structural mechanism behind it.
+
+Every metric must answer: Is this stable? Improving? Structurally weak? Cyclical?
+
+Write 3–5 concise bullet points per section (except Management: 2 bullets; Composite: prose). Start each bullet with a lowercase verb or the metric name. Do not use any introductory preamble — begin directly with the first section header.`
 }
 
 // ─── Section Parser ─────────────────────────────────────────────────────────
@@ -225,7 +262,7 @@ export async function generateNarrative(input: NarrativeInput): Promise<Narrativ
     const prompt = buildPrompt(dataBlock)
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     })
