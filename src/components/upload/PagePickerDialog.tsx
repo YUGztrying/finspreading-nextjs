@@ -12,7 +12,7 @@
 
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -63,6 +63,47 @@ export interface ExtractFromPagesResult {
       indent_level?: number
     }>
   }>
+}
+
+// LazyPage — renders a placeholder of the right size until it's near the
+// viewport, then mounts the real <Page>. Keeps the initial modal open
+// instant even for 50+ page documents; without this react-pdf would queue
+// all pages at once and block the UI for several seconds.
+function LazyPage({ pageNumber, width, aspectRatio }: { pageNumber: number; width: number; aspectRatio: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    if (!ref.current || visible) return
+    const el = ref.current
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin: '400px 0px' } // start rendering 400px before entering viewport
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [visible])
+
+  return (
+    <div ref={ref} style={{ width, height: width * aspectRatio }} className="bg-stone-50 flex items-center justify-center">
+      {visible ? (
+        <Page
+          pageNumber={pageNumber}
+          width={width}
+          renderAnnotationLayer={false}
+          renderTextLayer={false}
+          loading={<Loader2 className="w-4 h-4 animate-spin text-stone-300" />}
+        />
+      ) : (
+        <span className="text-xs text-stone-300">p.{pageNumber}</span>
+      )}
+    </div>
+  )
 }
 
 interface PagePickerDialogProps {
@@ -253,11 +294,10 @@ export default function PagePickerDialog({
                         className="relative bg-white rounded overflow-hidden shadow-sm block w-full hover:ring-2 hover:ring-amber-500 transition-all cursor-zoom-in"
                         title="Clique pour agrandir"
                       >
-                        <Page
+                        <LazyPage
                           pageNumber={pageNumber}
-                          width={320}
-                          renderAnnotationLayer={false}
-                          renderTextLayer={false}
+                          width={280}
+                          aspectRatio={1.4142}
                         />
                         <div className="absolute top-1.5 right-1.5 bg-stone-900/80 text-white text-xs font-medium px-2 py-0.5 rounded">
                           p.{pageNumber}

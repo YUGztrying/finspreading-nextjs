@@ -61,22 +61,35 @@ function buildPrompt(type: StatementType, institutionType: InstitutionType): str
   const label = statementLabel(type)
   const context = institutionType === 'banque' ? 'bancaires' : 'de microfinance'
 
+  // Hors-Bilan has a distinctive two-section layout (Engagements donnés +
+  // Engagements reçus). Giving Claude that hint up-front prevents it from
+  // returning a nested/alternative structure.
+  const typeSpecificHint =
+    type === 'hors_bilan'
+      ? `\nATTENTION — Format Hors-Bilan spécifique:
+Ce tableau contient typiquement DEUX sous-sections:
+  - ENGAGEMENTS DONNÉS (postes 1 à ~3: financement, garantie, titres)
+  - ENGAGEMENTS REÇUS (postes 4 à ~6: mêmes catégories en réception)
+Mets les DEUX sous-sections dans le MÊME tableau "line_items" dans l'ordre.
+Pour les en-têtes "ENGAGEMENTS DONNÉS" / "ENGAGEMENTS REÇUS" eux-mêmes, ajoute une ligne avec is_subtotal: true, amounts: [0, 0].`
+      : ''
+
   return `Tu es un expert comptable spécialisé dans l'analyse d'états financiers ${context} (format BCEAO/OHADA).
 
-Ce PDF contient UNIQUEMENT le tableau "${label}" d'une institution financière. Extrais TOUTES les lignes du tableau.
+Ce PDF contient UNIQUEMENT le tableau "${label}" d'une institution financière. Extrais TOUTES les lignes du tableau.${typeSpecificHint}
 
 INSTRUCTIONS:
 1. Identifie le nom de l'institution (cherche en en-tête de page ou dans une cellule)
 2. Identifie les périodes/exercices présentés (dans l'en-tête des colonnes numériques)
 3. Pour CHAQUE ligne du tableau, extrais:
-   - Le code POSTE (souvent un numéro 1-20 ou un code alphanumérique comme RBA_0010, MFA_A11)
+   - Le code POSTE (souvent un numéro 1-20 ou un code alphanumérique comme RBA_0010, MFA_A11). Si pas de code visible, utilise "".
    - La description exacte (libellé en français)
    - Les montants pour chaque période (en nombres, pas en string; utilise 0 si vide ou "-")
-   - is_subtotal: true si la ligne est un sous-total (souvent en italique ou indenté)
+   - is_subtotal: true si la ligne est un sous-total ou un en-tête de section
    - is_total: true pour la ligne TOTAL finale
    - indent_level: 0 pour les lignes principales, 1 pour les sous-éléments indentés
 
-FORMAT DE SORTIE (JSON strict, AUCUN texte additionnel):
+FORMAT DE SORTIE (JSON strict, AUCUN texte additionnel, AUCUN markdown):
 {
   "company_name": "Nom de l'institution",
   "periods": ["2023-12-31", "2024-12-31"],
@@ -99,8 +112,9 @@ RÈGLES CRITIQUES:
 - Inclus TOUS les totaux et sous-totaux avec les flags appropriés
 - Si un montant est "-" ou vide, utilise 0
 - N'invente AUCUNE ligne; extrais uniquement ce qui est visible dans le PDF
+- Les champs "company_name", "periods", et "line_items" sont OBLIGATOIRES dans la réponse
 
-Réponds UNIQUEMENT avec le JSON, sans markdown.`
+Réponds UNIQUEMENT avec le JSON.`
 }
 
 interface ClaudeExtractionResult {
@@ -143,18 +157,46 @@ async function extractOneStatement(
     throw new Error(`No text response from Claude for ${type}`)
   }
 
-  let jsonStr = textBlock.text.trim()
+  const rawResponse = textBlock.text
+  let jsonStr = rawResponse.trim()
+
   // Strip markdown code fences if Claude wrapped the response
   if (jsonStr.startsWith('```')) {
     jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
   }
 
-  const parsed = JSON.parse(jsonStr)
-  if (!parsed.company_name || !Array.isArray(parsed.line_items) || !Array.isArray(parsed.periods)) {
-    throw new Error(`Invalid JSON structure from Claude for ${type}`)
+  // Fallback: look for the first {...} block if Claude added narrative around it
+  if (!jsonStr.startsWith('{')) {
+    const firstBrace = jsonStr.indexOf('{')
+    const lastBrace = jsonStr.lastIndexOf('}')
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      jsonStr = jsonStr.slice(firstBrace, lastBrace + 1)
+    }
   }
 
-  return parsed as ClaudeExtractionResult
+  let parsed: any
+  try {
+    parsed = JSON.parse(jsonStr)
+  } catch (parseErr: any) {
+    console.error(`[extract-from-pages] JSON parse failed for ${type}:`, parseErr.message)
+    console.error(`[extract-from-pages] Raw response for ${type} (first 500 chars):`, rawResponse.slice(0, 500))
+    throw new Error(`Claude returned un-parseable JSON for ${type}. Raw response starts with: ${rawResponse.slice(0, 120)}…`)
+  }
+
+  // Lenient validation: line_items is the one hard requirement. Missing
+  // company_name or periods are recoverable (analyst can edit later).
+  const lineItems = Array.isArray(parsed.line_items) ? parsed.line_items : null
+  if (!lineItems) {
+    console.error(`[extract-from-pages] Missing line_items for ${type}. Keys:`, Object.keys(parsed))
+    console.error(`[extract-from-pages] Raw response for ${type} (first 500 chars):`, rawResponse.slice(0, 500))
+    throw new Error(`Claude response for ${type} has no line_items array. Keys returned: ${Object.keys(parsed).join(', ')}`)
+  }
+
+  return {
+    company_name: typeof parsed.company_name === 'string' && parsed.company_name.trim() ? parsed.company_name : '',
+    periods: Array.isArray(parsed.periods) ? parsed.periods : [],
+    line_items: lineItems,
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -213,7 +255,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Extract in parallel per statement type
+    // Extract in parallel per statement type — partial success tolerated
     const extractionPromises = Object.entries(validSelections).map(
       async ([type, pages]): Promise<ExtractedStatement & { company_name: string }> => {
         // Build sub-PDF containing only the selected pages
@@ -235,9 +277,35 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    const results = await Promise.all(extractionPromises)
+    const settled = await Promise.allSettled(extractionPromises)
+    const results: Array<ExtractedStatement & { company_name: string }> = []
+    const failures: Array<{ statement_type: string; error: string }> = []
 
-    // Use the most common company_name across extractions (majority vote, ties broken by first)
+    for (let i = 0; i < settled.length; i++) {
+      const type = Object.keys(validSelections)[i]
+      const outcome = settled[i]
+      if (outcome.status === 'fulfilled') {
+        results.push(outcome.value)
+      } else {
+        failures.push({
+          statement_type: type,
+          error: outcome.reason?.message ?? String(outcome.reason),
+        })
+      }
+    }
+
+    // If everything failed, surface as 500 with full detail
+    if (results.length === 0) {
+      return NextResponse.json(
+        {
+          error: 'All extractions failed',
+          failures,
+        },
+        { status: 500 }
+      )
+    }
+
+    // Use the most common company_name across successful extractions
     const nameVotes: Record<string, number> = {}
     for (const r of results) {
       if (r.company_name) {
@@ -258,9 +326,11 @@ export async function POST(request: NextRequest) {
           line_items,
         })),
       },
+      warnings: failures.length > 0 ? failures : undefined,
       summary: {
         company: companyName,
         total_statements: results.length,
+        failed_statements: failures.length,
         statements: results.map((r) => ({
           type: r.statement_type,
           lines: r.line_items.length,
