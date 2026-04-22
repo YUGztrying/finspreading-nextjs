@@ -8,8 +8,17 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ArrowLeft, Building2, AlertCircle, CheckCircle, X } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import FileUploadZone from '@/components/upload/FileUploadZone'
 import ProcessingQueue from '@/components/upload/ProcessingQueue'
+import type { ExtractFromPagesResult } from '@/components/upload/PagePickerDialog'
+
+// react-pdf pulls in pdfjs-dist which uses browser-only APIs (DOMMatrix, etc.).
+// Load the dialog on the client only to keep SSR/prerendering happy.
+const PagePickerDialog = dynamic(
+  () => import('@/components/upload/PagePickerDialog'),
+  { ssr: false }
+)
 
 export default function UploadPage() {
   const router = useRouter()
@@ -24,6 +33,12 @@ export default function UploadPage() {
     message: string
   } | null>(null)
   const [verificationCompany, setVerificationCompany] = useState<string | null>(null)
+
+  // Page-picker dialog state (PDF flow)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerFileUrl, setPickerFileUrl] = useState<string | null>(null)
+  const [pickerFileName, setPickerFileName] = useState('')
+  const [pickerFileIndex, setPickerFileIndex] = useState<number | null>(null)
 
   // Handle drag events
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -118,30 +133,40 @@ export default function UploadPage() {
 
       const fileUrl = urlData.signedUrl
 
-      // Step 3: Process the file based on type
+      // Step 3: Branch by file type
       const lowerFileName = file.name.toLowerCase()
-      let apiEndpoint = ''
-      
-      if (lowerFileName.endsWith('.xlsx') || lowerFileName.endsWith('.xls')) {
-        apiEndpoint = '/api/process-excel'
-      } else if (lowerFileName.endsWith('.pdf')) {
-        apiEndpoint = '/api/extract-data'
-      } else {
+      const isPdf = lowerFileName.endsWith('.pdf')
+      const isExcel = lowerFileName.endsWith('.xlsx') || lowerFileName.endsWith('.xls')
+
+      if (!isPdf && !isExcel) {
         throw new Error(`Type de fichier non supporté: ${file.name}`)
       }
 
-      // Step 4: Call processing API
-      // Step 4: Call processing API
-      const response = await fetch(apiEndpoint, {
+      if (isPdf) {
+        // PDF flow: open the page-picker dialog. The analyst picks which pages
+        // contain which statement type. Extraction + save happen in the picker's
+        // onExtracted callback (handleExtractionResult below).
+        clearInterval(progressInterval)
+        setProgress(prev => {
+          const newProgress = [...prev]
+          newProgress[index] = 50 // upload done, awaiting user input
+          return newProgress
+        })
+        setPickerFileUrl(fileUrl)
+        setPickerFileName(file.name)
+        setPickerFileIndex(index)
+        setPickerOpen(true)
+        return // dialog drives the rest of the flow
+      }
+
+      // Excel flow: single server-side call handles extraction + save + normalization.
+      const response = await fetch('/api/process-excel', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           file_url: fileUrl,
           institution_type: institutionType,
-          user_id: user?.id,  // ADD THIS
-          company_name: file.name.replace(/\.(xlsx|xls|pdf)$/i, '').replace(/[_-]/g, ' ')  // ADD THIS
+          company_name: file.name.replace(/\.(xlsx|xls|pdf)$/i, '').replace(/[_-]/g, ' '),
         }),
       })
 
@@ -154,64 +179,6 @@ export default function UploadPage() {
 
       const result = await response.json().catch(() => ({}))
 
-      // Step 5: Save to database
-
-      // Updated section for PDF processing in upload page
-// Replace lines 162-217 in src/app/(dashboard)/upload/page.tsx
-
-      let processedData: any
-      
-      if (apiEndpoint === '/api/process-excel') {
-        // Excel processing - already handles multiple statements
-        
-        // Excel route already saves to database, so we're done
-        const savedCount = result.saved_statements?.length || 0
-        
-      } else {
-        // PDF processing - now handles MULTIPLE statements
-        const statements = result.data.statements || []
-        const companyName = result.data.company_name
-        
-        
-        let savedCount = 0
-        const savedIds: string[] = []
-        
-        // Process each statement separately
-        for (const statement of statements) {
-          const statementData = {
-            company_name: companyName,
-            type_institution: institutionType,
-            statement_type: statement.statement_type,
-            periods: statement.periods,
-            line_items: statement.line_items,
-            source_file: __filename
-          }
-          
-          try {
-            // Save to database
-            const saveResponse = await fetch('/api/statements/save', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ 
-                data: statementData,
-                user_id: user?.id 
-              }),
-            })
-            
-            if (saveResponse.ok) {
-              const saveResult = await saveResponse.json()
-              savedIds.push(saveResult.statement_id)
-              savedCount++
-            } else {
-            }
-          } catch (saveError) {
-          }
-        }
-        
-      }
-
       // Complete progress
       setProgress(prev => {
         const newProgress = [...prev]
@@ -219,22 +186,16 @@ export default function UploadPage() {
         return newProgress
       })
 
-      // Show verification card with the company name
-      let uploadedCompanyName = ''
-      if (apiEndpoint === '/api/process-excel') {
-        uploadedCompanyName = result.company_name || file.name.replace(/\.(xlsx|xls|pdf)$/i, '').replace(/[_-]/g, ' ')
-      } else {
-        uploadedCompanyName = result.data.company_name || file.name.replace(/\.(xlsx|xls|pdf)$/i, '').replace(/[_-]/g, ' ')
-      }
+      const uploadedCompanyName =
+        result.company_name || file.name.replace(/\.(xlsx|xls|pdf)$/i, '').replace(/[_-]/g, ' ')
       setVerificationCompany(uploadedCompanyName)
       setNotification(null)
-
 
       // Auto-remove after 3 seconds
       setTimeout(() => removeFile(index), 3000)
 
     } catch (error: any) {
-      
+
       setNotification({
         type: 'error',
         message: error?.message || 'Une erreur est survenue lors du traitement'
@@ -256,6 +217,88 @@ export default function UploadPage() {
       })
       setIsProcessing(false)
     }
+  }
+
+  // Called by PagePickerDialog after /api/extract-from-pages returns.
+  // Saves each extracted statement through the existing /api/statements/save
+  // flow so we reuse normalization, merging, and validation.
+  const handleExtractionResult = async (result: ExtractFromPagesResult) => {
+    if (pickerFileIndex === null) return
+    const index = pickerFileIndex
+
+    try {
+      for (const statement of result.statements) {
+        const statementData = {
+          company_name: result.company_name,
+          type_institution: institutionType,
+          statement_type: statement.statement_type,
+          periods: statement.periods,
+          line_items: statement.line_items,
+          source_file: pickerFileName,
+        }
+
+        const saveResponse = await fetch('/api/statements/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: statementData }),
+        })
+
+        if (!saveResponse.ok) {
+          const err = await saveResponse.json().catch(() => ({}))
+          throw new Error(err.error || `Échec de la sauvegarde pour ${statement.statement_type}`)
+        }
+      }
+
+      // Success: close dialog, complete progress, show verification card
+      setPickerOpen(false)
+      setPickerFileUrl(null)
+      setPickerFileName('')
+      setPickerFileIndex(null)
+
+      setProgress(prev => {
+        const newProgress = [...prev]
+        newProgress[index] = 100
+        return newProgress
+      })
+      setVerificationCompany(result.company_name)
+      setNotification(null)
+
+      setTimeout(() => removeFile(index), 3000)
+    } catch (err: any) {
+      setNotification({
+        type: 'error',
+        message: err?.message || 'Sauvegarde échouée après extraction',
+      })
+    } finally {
+      setProcessing(prev => {
+        const newProcessing = [...prev]
+        newProcessing[index] = false
+        return newProcessing
+      })
+      setIsProcessing(false)
+    }
+  }
+
+  const handlePickerClose = () => {
+    // User cancelled the picker — reset the file's processing state so they can retry
+    if (pickerFileIndex !== null) {
+      const index = pickerFileIndex
+      setProcessing(prev => {
+        const newProcessing = [...prev]
+        newProcessing[index] = false
+        return newProcessing
+      })
+      setProgress(prev => {
+        const newProgress = [...prev]
+        newProgress[index] = 0
+        return newProgress
+      })
+    }
+    setPickerOpen(false)
+    setPickerFileUrl(null)
+    setPickerFileName('')
+    setPickerFileIndex(null)
+    setIsProcessing(false)
   }
 
   return (
@@ -425,6 +468,16 @@ export default function UploadPage() {
           />
         )}
       </main>
+
+      {/* PDF Page-Picker Dialog — opens automatically when a PDF is uploaded */}
+      <PagePickerDialog
+        open={pickerOpen}
+        fileUrl={pickerFileUrl}
+        fileName={pickerFileName}
+        institutionType={institutionType}
+        onClose={handlePickerClose}
+        onExtracted={handleExtractionResult}
+      />
     </div>
   )
 }
