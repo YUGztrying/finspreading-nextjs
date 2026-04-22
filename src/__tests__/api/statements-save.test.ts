@@ -9,10 +9,14 @@ import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/statements/save/route'
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
-jest.mock('@/lib/supabase/server', () => ({
-  createClient: jest.fn(() => ({
-    auth: { getUser: jest.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
-  })),
+// requireUser is the auth guard in front of every protected route.
+// Mock it to return a fake authenticated user so we can test route logic in isolation.
+jest.mock('@/lib/auth/require-user', () => ({
+  requireUser: jest.fn().mockResolvedValue({
+    user: { id: 'user-1', email: 'analyst@ifc.org' },
+    supabase: {},
+    response: null,
+  }),
 }))
 
 const mockSaveFinancialStatement = jest.fn()
@@ -58,23 +62,16 @@ describe('POST /api/statements/save', () => {
   })
 
   it('returns 400 when body is missing statementData', async () => {
-    const req = buildRequest({ user_id: 'user-1' })
+    const req = buildRequest({})
     const res = await POST(req)
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toMatch(/required/)
   })
 
-  it('returns 400 when user_id is missing', async () => {
-    const req = buildRequest({ data: validStatementData })
-    const res = await POST(req)
-    expect(res.status).toBe(400)
-  })
-
   it('returns 400 when company_name is missing', async () => {
     const req = buildRequest({
       data: { ...validStatementData, company_name: '' },
-      user_id: 'user-1',
     })
     const res = await POST(req)
     expect(res.status).toBe(400)
@@ -85,14 +82,13 @@ describe('POST /api/statements/save', () => {
   it('returns 400 when statement_type is missing', async () => {
     const req = buildRequest({
       data: { ...validStatementData, statement_type: '' },
-      user_id: 'user-1',
     })
     const res = await POST(req)
     expect(res.status).toBe(400)
   })
 
   it('saves successfully and returns statement_id and normalization stats', async () => {
-    const req = buildRequest({ data: validStatementData, user_id: 'user-1' })
+    const req = buildRequest({ data: validStatementData })
     const res = await POST(req)
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -103,7 +99,7 @@ describe('POST /api/statements/save', () => {
   })
 
   it('calls normalizeFinancialLines with the correct institution and statement type', async () => {
-    const req = buildRequest({ data: validStatementData, user_id: 'user-1' })
+    const req = buildRequest({ data: validStatementData })
     await POST(req)
     expect(mockNormalize).toHaveBeenCalledWith(
       validStatementData.line_items,
@@ -116,7 +112,7 @@ describe('POST /api/statements/save', () => {
 
   it('defaults institutionType to "banque" when missing', async () => {
     const dataWithoutType = { ...validStatementData, type_institution: undefined }
-    const req = buildRequest({ data: dataWithoutType, user_id: 'user-1' })
+    const req = buildRequest({ data: dataWithoutType })
     await POST(req)
     expect(mockNormalize).toHaveBeenCalledWith(
       expect.anything(),
@@ -126,7 +122,7 @@ describe('POST /api/statements/save', () => {
 
   it('returns 500 when saveFinancialStatement returns success=false', async () => {
     mockSaveFinancialStatement.mockResolvedValue({ success: false, error: 'DB error' })
-    const req = buildRequest({ data: validStatementData, user_id: 'user-1' })
+    const req = buildRequest({ data: validStatementData })
     const res = await POST(req)
     expect(res.status).toBe(500)
     const body = await res.json()
@@ -135,7 +131,7 @@ describe('POST /api/statements/save', () => {
 
   it('returns 500 when saveFinancialStatement throws', async () => {
     mockSaveFinancialStatement.mockRejectedValue(new Error('Unexpected failure'))
-    const req = buildRequest({ data: validStatementData, user_id: 'user-1' })
+    const req = buildRequest({ data: validStatementData })
     const res = await POST(req)
     expect(res.status).toBe(500)
   })
@@ -143,9 +139,16 @@ describe('POST /api/statements/save', () => {
   it('passes normalized lines (not raw lines) to saveFinancialStatement', async () => {
     const normalizedLine = { poste: 'MFA_CASH_NORMALIZED', description: 'Cash', amounts: [100_000] }
     mockNormalize.mockReturnValue({ ...normalizeResult, normalizedLines: [normalizedLine] })
-    const req = buildRequest({ data: validStatementData, user_id: 'user-1' })
+    const req = buildRequest({ data: validStatementData })
     await POST(req)
     const callArg = mockSaveFinancialStatement.mock.calls[0][0]
     expect(callArg.line_items).toEqual([normalizedLine])
+  })
+
+  it('uses the authenticated user.id (ignoring any body-provided user_id)', async () => {
+    const req = buildRequest({ data: validStatementData, user_id: 'attacker-id' })
+    await POST(req)
+    // saveFinancialStatement(data, userId) — userId must come from session, not body
+    expect(mockSaveFinancialStatement).toHaveBeenCalledWith(expect.anything(), 'user-1')
   })
 })

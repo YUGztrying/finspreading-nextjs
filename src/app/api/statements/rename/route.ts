@@ -1,26 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth/require-user'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
-  try {
-    const { old_company_name, new_company_name, statement_type, user_id } = await request.json()
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
 
-    if (!old_company_name || !new_company_name || !user_id) {
+  try {
+    const { old_company_name, new_company_name } = await request.json()
+
+    if (!old_company_name || !new_company_name) {
       return NextResponse.json(
-        { error: 'old_company_name, new_company_name, and user_id are required' },
+        { error: 'old_company_name and new_company_name are required' },
         { status: 400 }
       )
     }
 
-
-    // Use service role client to bypass RLS
+    // Service client usage is safe because user.id comes from the verified session.
     const supabase = createServiceClient() as any
 
     // Check if new company name already exists
     const { data: existingStatements, error: checkError } = await supabase
       .from('financial_statements')
       .select('*')
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .eq('company_name', new_company_name)
 
     if (checkError) {
@@ -34,7 +38,7 @@ export async function POST(request: NextRequest) {
       const { data: statementsToRename, error: fetchError } = await supabase
         .from('financial_statements')
         .select('*')
-        .eq('user_id', user_id)
+        .eq('user_id', user.id)
         .eq('company_name', old_company_name)
 
       if (fetchError) {
@@ -141,7 +145,7 @@ export async function POST(request: NextRequest) {
     const { data: updatedData, error: updateError } = await supabase
       .from('financial_statements')
       .update({ company_name: new_company_name })
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .eq('company_name', old_company_name)
       .select()
 

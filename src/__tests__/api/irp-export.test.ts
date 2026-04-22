@@ -10,6 +10,15 @@
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/statements/irp-report/route'
 
+// ─── Mock auth guard ──────────────────────────────────────────────────────────
+jest.mock('@/lib/auth/require-user', () => ({
+  requireUser: jest.fn().mockResolvedValue({
+    user: { id: 'user-1', email: 'analyst@ifc.org' },
+    supabase: {},
+    response: null,
+  }),
+}))
+
 // ─── Mock ExcelJS ─────────────────────────────────────────────────────────────
 const mockWriteBuffer = jest.fn().mockResolvedValue(Buffer.from('fake-excel-content'))
 const mockAddWorksheet = jest.fn().mockReturnValue({

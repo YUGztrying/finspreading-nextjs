@@ -1,28 +1,25 @@
 // src/app/api/camels/history/route.ts
-// GET: Retrieve saved CAMELS analyses for a user, optionally filtered by company.
+// GET: Retrieve saved CAMELS analyses for the authenticated user.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth/require-user'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
+
   try {
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('user_id')
     const companyName = searchParams.get('company_name')
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'user_id is required' },
-        { status: 400 }
-      )
-    }
 
     const supabase = createServiceClient() as any
 
     let query = supabase
       .from('camels_analyses')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .order('period', { ascending: false })
 
     if (companyName) {

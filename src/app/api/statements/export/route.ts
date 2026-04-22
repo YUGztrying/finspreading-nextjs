@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth/require-user'
 import { createServiceClient } from '@/lib/supabase/server'
 import ExcelJS from 'exceljs'
 import {
@@ -66,16 +67,19 @@ function ratingColor(r: number | null): string {
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
-  try {
-    const { company_name, user_id } = await request.json()
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
 
-    if (!company_name || !user_id) {
+  try {
+    const { company_name } = await request.json()
+
+    if (!company_name) {
       return NextResponse.json(
-        { error: 'company_name and user_id are required' },
+        { error: 'company_name is required' },
         { status: 400 }
       )
     }
-
 
     const supabase = createServiceClient() as any
 
@@ -83,7 +87,7 @@ export async function POST(request: NextRequest) {
     const { data: statements, error } = await supabase
       .from('financial_statements')
       .select('*')
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .eq('company_name', company_name)
       .order('statement_type', { ascending: true })
 
@@ -262,7 +266,7 @@ export async function POST(request: NextRequest) {
     const { data: pmRow } = await supabase
       .from('period_mappings')
       .select('mappings')
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .eq('company_name', company_name)
       .maybeSingle()
 
@@ -314,7 +318,7 @@ export async function POST(request: NextRequest) {
       const { data: ovRows } = await supabase
         .from('camels_analyses')
         .select('period, car_override, npl_amount_override')
-        .eq('user_id', user_id)
+        .eq('user_id', user.id)
         .eq('company_name', company_name)
       for (const row of ovRows ?? []) {
         overrides[row.period] = {

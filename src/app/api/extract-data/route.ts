@@ -1,15 +1,20 @@
 // src/app/api/extract-data/route.ts
-// API Route to extract financial data from PDFs using Claude API
-// Updated to handle multi-statement PDFs (actifs, passifs, compte_resultats, hors_bilan in one file)
+// API Route to extract financial data from PDFs using Claude API.
+// Handles multi-statement PDFs (actifs, passifs, compte_resultats, hors_bilan).
+// Auth-gated: calls to Anthropic cost money, so we require a valid session.
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { requireUser } from '@/lib/auth/require-user'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
 
 export async function POST(request: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+
   try {
     const body = await request.json()
     const { file_url, institution_type = 'banque' } = body
@@ -20,7 +25,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-
 
     // Step 1: Fetch the PDF file
     const response = await fetch(file_url)
@@ -146,11 +150,6 @@ Réponds UNIQUEMENT avec le JSON, sans texte supplémentaire.`
     // Validate structure
     if (!parsedData.company_name || !parsedData.statements || !Array.isArray(parsedData.statements)) {
       throw new Error('Invalid response structure - missing company_name or statements array')
-    }
-
-    // Log extraction results
-    
-    for (const statement of parsedData.statements) {
     }
 
     return NextResponse.json({

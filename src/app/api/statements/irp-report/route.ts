@@ -1,8 +1,12 @@
 // src/app/api/statements/irp-export/route.ts
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth/require-user'
 import ExcelJS from 'exceljs'
 
 export async function POST(request: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+
   try {
     const { company_name, institution_type, periods, balance_sheet, income_statement } = await request.json()
 

@@ -1,22 +1,28 @@
 // src/app/api/statements/delete-company/route.ts
 // DELETE — remove all data for a company (statements, analyses, mappings, overrides).
+// Auth enforced via requireUser(); user_id is derived from session, not the body.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth/require-user'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export async function DELETE(request: NextRequest) {
-  try {
-    const { user_id, company_name } = await request.json()
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
 
-    if (!user_id || !company_name) {
+  try {
+    const { company_name } = await request.json()
+
+    if (!company_name) {
       return NextResponse.json(
-        { error: 'user_id and company_name are required' },
+        { error: 'company_name is required' },
         { status: 400 }
       )
     }
 
+    // Service client is fine here because user.id comes from the verified session.
     const supabase = createServiceClient() as any
-    const filter = { user_id, company_name }
 
     // Delete from every table that scopes data by company
     const tables = [
@@ -27,18 +33,26 @@ export async function DELETE(request: NextRequest) {
       'irp_aliases',
     ]
 
+    const failures: Array<{ table: string; message: string }> = []
+
     for (const table of tables) {
       const { error } = await supabase
         .from(table)
         .delete()
-        .eq('user_id', user_id)
+        .eq('user_id', user.id)
         .eq('company_name', company_name)
 
-      if (error) {
-        // irp_aliases etc. may not exist in all deployments — skip missing tables
-        if (error.code !== 'PGRST116') {
-        }
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 = table/relation not found — expected for optional tables
+        failures.push({ table, message: error.message })
       }
+    }
+
+    if (failures.length > 0) {
+      return NextResponse.json(
+        { error: 'Partial delete failure', failures },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({ success: true })
