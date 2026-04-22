@@ -3,6 +3,7 @@
 // Reads financial_statements, computes ratios, saves to camels_analyses.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth/require-user'
 import { createServiceClient } from '@/lib/supabase/server'
 import { extractFinancialData, getAllPeriods } from '@/lib/camels/field-mapper'
 import { runFullAnalysis } from '@/lib/camels/calculator'
@@ -11,13 +12,17 @@ import { FinancialData } from '@/lib/camels/types'
 import { LineItem, PeriodMapping } from '@/types/database.types'
 
 export async function POST(request: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
+
   try {
-    const { user_id, company_name, force_refresh = false, period_mappings: rawMappings } = await request.json()
+    const { company_name, force_refresh = false, period_mappings: rawMappings } = await request.json()
     const periodMappings: PeriodMapping[] | null = Array.isArray(rawMappings) && rawMappings.length > 0 ? rawMappings : null
 
-    if (!user_id || !company_name) {
+    if (!company_name) {
       return NextResponse.json(
-        { error: 'user_id and company_name are required' },
+        { error: 'company_name is required' },
         { status: 400 }
       )
     }
@@ -28,7 +33,7 @@ export async function POST(request: NextRequest) {
     const { data: statements, error: fetchError } = await supabase
       .from('financial_statements')
       .select('*')
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .eq('company_name', company_name)
 
     if (fetchError) {
@@ -120,7 +125,7 @@ export async function POST(request: NextRequest) {
       const { data: cached } = await supabase
         .from('camels_analyses')
         .select('analysis_capital, analysis_asset_quality, analysis_management, analysis_earnings, analysis_liquidity, analysis_composite, updated_at')
-        .eq('user_id', user_id)
+        .eq('user_id', user.id)
         .eq('company_name', company_name)
         .eq('period', latestResult.period)
         .maybeSingle()
@@ -169,7 +174,7 @@ export async function POST(request: NextRequest) {
       const periodAnalysis = isLatest ? analysisText : analysis.analysis
 
       const row = {
-        user_id,
+        user_id: user.id,
         company_name,
         period,
         type_institution: institutionType,
@@ -206,6 +211,10 @@ export async function POST(request: NextRequest) {
         .upsert(row, { onConflict: 'user_id,company_name,period' })
 
       if (upsertError) {
+        return NextResponse.json(
+          { error: `Failed to save CAMELS analysis for ${period}: ${upsertError.message}` },
+          { status: 500 }
+        )
       }
     }
 

@@ -1,18 +1,23 @@
 // src/app/api/camels/overrides/route.ts
 // GET  — fetch analyst overrides for a company across all periods.
 // POST — save or clear a single override field for a specific company + period.
+// Auth enforced via requireUser(); user_id always derived from session.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth/require-user'
 import { createServiceClient } from '@/lib/supabase/server'
 
-// GET /api/camels/overrides?user_id=…&company_name=…
+// GET /api/camels/overrides?company_name=…
 export async function GET(request: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
+
   const { searchParams } = new URL(request.url)
-  const user_id = searchParams.get('user_id')
   const company_name = searchParams.get('company_name')
 
-  if (!user_id || !company_name) {
-    return NextResponse.json({ error: 'user_id and company_name are required' }, { status: 400 })
+  if (!company_name) {
+    return NextResponse.json({ error: 'company_name is required' }, { status: 400 })
   }
 
   const supabase = createServiceClient() as any
@@ -20,7 +25,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from('camels_analyses')
     .select('period, car_override, npl_amount_override')
-    .eq('user_id', user_id)
+    .eq('user_id', user.id)
     .eq('company_name', company_name)
     .order('period', { ascending: true })
 
@@ -41,14 +46,18 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/camels/overrides
-// Body: { user_id, company_name, period, field: 'car_override'|'npl_amount_override', value: number|null }
+// Body: { company_name, period, field: 'car_override'|'npl_amount_override', value: number|null }
 export async function POST(request: NextRequest) {
-  try {
-    const { user_id, company_name, period, field, value } = await request.json()
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
 
-    if (!user_id || !company_name || !period || !field) {
+  try {
+    const { company_name, period, field, value } = await request.json()
+
+    if (!company_name || !period || !field) {
       return NextResponse.json(
-        { error: 'user_id, company_name, period, and field are required' },
+        { error: 'company_name, period, and field are required' },
         { status: 400 }
       )
     }
@@ -65,7 +74,7 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase
       .from('camels_analyses')
       .update({ [field]: value ?? null, updated_at: new Date().toISOString() })
-      .eq('user_id', user_id)
+      .eq('user_id', user.id)
       .eq('company_name', company_name)
       .eq('period', period)
 

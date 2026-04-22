@@ -1,23 +1,24 @@
 // src/app/api/statements/save/route.ts
 // API endpoint to save processed financial statement data
-// Updated to apply normalization automatically before saving
+// Normalizes line items before saving. Auth enforced via requireUser().
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/auth/require-user'
 import { saveFinancialStatement, ProcessedData } from '@/lib/statements/database'
 import { normalizeFinancialLines } from '@/lib/normalization/normalize'
 
 export async function POST(request: NextRequest) {
-  try {
-    // Note: Route is protected by middleware, user is authenticated
-    // Get user_id from request header (set by middleware) or session
-    
-    const body = await request.json()
-    const { data: statementData, user_id } = body as { data: ProcessedData; user_id: string }
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
 
-    if (!statementData || !user_id) {
+  try {
+    const body = await request.json()
+    const { data: statementData } = body as { data: ProcessedData }
+
+    if (!statementData) {
       return NextResponse.json(
-        { error: 'Statement data and user_id are required' },
+        { error: 'Statement data is required' },
         { status: 400 }
       )
     }
@@ -48,8 +49,8 @@ export async function POST(request: NextRequest) {
       line_items: normalizeResult.normalizedLines
     }
 
-    // Save to database
-    const result = await saveFinancialStatement(normalizedStatementData, user_id)
+    // Save to database — user.id comes from the verified session, never from body
+    const result = await saveFinancialStatement(normalizedStatementData, user.id)
 
     if (!result.success) {
       throw new Error(result.error || 'Failed to save statement')

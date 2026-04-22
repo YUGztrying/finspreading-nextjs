@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
+import { requireUser } from '@/lib/auth/require-user'
 import { saveFinancialStatement } from '@/lib/statements/database'
 import { LineItem } from '@/types/database.types'
 import { normalizeFinancialLines } from '@/lib/normalization/normalize'
@@ -217,22 +218,17 @@ function extractPeriods(headers: string[]): string[] {
 }
 
 export async function POST(request: NextRequest) {
-  
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
+
   try {
     const body = await request.json()
-    const { file_url, institution_type = 'banque', user_id, company_name } = body
-
+    const { file_url, institution_type = 'banque', company_name } = body
 
     if (!file_url) {
       return NextResponse.json(
         { error: 'file_url is required' },
-        { status: 400 }
-      )
-    }
-
-    if (!user_id) {
-      return NextResponse.json(
-        { error: 'user_id is required' },
         { status: 400 }
       )
     }
@@ -405,7 +401,7 @@ export async function POST(request: NextRequest) {
             if (normalizeResult.unmappedLines.length > 0) {
             }
 
-            // Save to database
+            // Save to database — user.id comes from the verified session
             const saveResult = await saveFinancialStatement(
               {
                 company_name: company_name || 'Unknown Company',
@@ -415,7 +411,7 @@ export async function POST(request: NextRequest) {
                 line_items: normalizedLineItems,
                 source_file: file_url
               },
-              user_id
+              user.id
             )
 
             if (saveResult.success) {

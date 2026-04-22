@@ -1,22 +1,20 @@
 // src/app/api/statements/list/route.ts
-// API endpoint to list all statements for authenticated user
+// API endpoint to list all statements for the authenticated user.
+// user_id is always derived from the session — never from query params.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth/require-user'
 import { createServiceClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
+
   try {
     const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('user_id')
     const companyName = searchParams.get('company_name')
     const statementType = searchParams.get('statement_type')
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'user_id is required' },
-        { status: 400 }
-      )
-    }
 
     const supabase = createServiceClient() as any
 
@@ -24,7 +22,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('financial_statements')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
 
     // Apply filters if provided

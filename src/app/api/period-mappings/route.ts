@@ -1,19 +1,23 @@
 // src/app/api/period-mappings/route.ts
-// GET  — fetch saved period mappings for a user + company.
-// POST — upsert period mappings for a user + company.
+// GET  — fetch saved period mappings for the authenticated user + company.
+// POST — upsert period mappings for the authenticated user + company.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireUser } from '@/lib/auth/require-user'
 import { createServiceClient } from '@/lib/supabase/server'
 import type { PeriodMapping } from '@/types/database.types'
 
-// GET /api/period-mappings?user_id=…&company_name=…
+// GET /api/period-mappings?company_name=…
 export async function GET(request: NextRequest) {
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
+
   const { searchParams } = new URL(request.url)
-  const user_id = searchParams.get('user_id')
   const company_name = searchParams.get('company_name')
 
-  if (!user_id || !company_name) {
-    return NextResponse.json({ error: 'user_id and company_name are required' }, { status: 400 })
+  if (!company_name) {
+    return NextResponse.json({ error: 'company_name is required' }, { status: 400 })
   }
 
   const supabase = createServiceClient() as any
@@ -21,7 +25,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from('period_mappings')
     .select('mappings')
-    .eq('user_id', user_id)
+    .eq('user_id', user.id)
     .eq('company_name', company_name)
     .maybeSingle()
 
@@ -35,14 +39,18 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/period-mappings
-// Body: { user_id, company_name, mappings: PeriodMapping[] }
+// Body: { company_name, mappings: PeriodMapping[] }
 export async function POST(request: NextRequest) {
-  try {
-    const { user_id, company_name, mappings } = await request.json()
+  const auth = await requireUser()
+  if (!auth.user) return auth.response
+  const { user } = auth
 
-    if (!user_id || !company_name || !Array.isArray(mappings)) {
+  try {
+    const { company_name, mappings } = await request.json()
+
+    if (!company_name || !Array.isArray(mappings)) {
       return NextResponse.json(
-        { error: 'user_id, company_name, and mappings[] are required' },
+        { error: 'company_name and mappings[] are required' },
         { status: 400 }
       )
     }
@@ -53,7 +61,7 @@ export async function POST(request: NextRequest) {
       .from('period_mappings')
       .upsert(
         {
-          user_id,
+          user_id: user.id,
           company_name,
           mappings,
           updated_at: new Date().toISOString(),

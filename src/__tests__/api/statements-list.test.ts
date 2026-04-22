@@ -34,6 +34,15 @@ jest.mock('@/lib/supabase/server', () => ({
   createServiceClient: jest.fn(() => ({ from: mockFrom })),
 }))
 
+// Mock the auth guard to return a fake authenticated user
+jest.mock('@/lib/auth/require-user', () => ({
+  requireUser: jest.fn().mockResolvedValue({
+    user: { id: 'user-1', email: 'analyst@ifc.org' },
+    supabase: {},
+    response: null,
+  }),
+}))
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function buildRequest(params: Record<string, string>) {
   const url = new URL('http://localhost/api/statements/list')
@@ -55,21 +64,13 @@ describe('GET /api/statements/list', () => {
     mockOrder.mockReturnValue(queryChain)
   })
 
-  it('returns 400 when user_id is missing', async () => {
-    const req = buildRequest({})
-    const res = await GET(req)
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/user_id/)
-  })
-
   it('returns statements and companies on success', async () => {
     resolveChain([
       { id: '1', company_name: 'Acme Bank', statement_type: 'actifs' },
       { id: '2', company_name: 'Acme Bank', statement_type: 'passifs' },
     ])
 
-    const req = buildRequest({ user_id: 'user-123' })
+    const req = buildRequest({})
     const res = await GET(req)
     expect(res.status).toBe(200)
 
@@ -82,7 +83,7 @@ describe('GET /api/statements/list', () => {
 
   it('returns an empty list when no statements found', async () => {
     resolveChain([])
-    const req = buildRequest({ user_id: 'user-123' })
+    const req = buildRequest({})
     const res = await GET(req)
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -92,7 +93,7 @@ describe('GET /api/statements/list', () => {
 
   it('applies company_name filter when provided', async () => {
     resolveChain([])
-    const req = buildRequest({ user_id: 'user-123', company_name: 'Acme Bank' })
+    const req = buildRequest({ company_name: 'Acme Bank' })
     await GET(req)
     // .eq should have been called with 'company_name'
     const eqCalls = mockEq.mock.calls
@@ -101,7 +102,7 @@ describe('GET /api/statements/list', () => {
 
   it('applies statement_type filter when provided', async () => {
     resolveChain([])
-    const req = buildRequest({ user_id: 'user-123', statement_type: 'actifs' })
+    const req = buildRequest({ statement_type: 'actifs' })
     await GET(req)
     const eqCalls = mockEq.mock.calls
     expect(eqCalls.some(([col]: [string]) => col === 'statement_type')).toBe(true)
@@ -109,7 +110,7 @@ describe('GET /api/statements/list', () => {
 
   it('returns 500 when database query fails', async () => {
     resolveChain(null, { message: 'DB unavailable' })
-    const req = buildRequest({ user_id: 'user-123' })
+    const req = buildRequest({})
     const res = await GET(req)
     expect(res.status).toBe(500)
     const body = await res.json()
@@ -122,11 +123,21 @@ describe('GET /api/statements/list', () => {
       { id: '2', company_name: 'Bank B', statement_type: 'actifs' },
       { id: '3', company_name: 'Bank A', statement_type: 'passifs' },
     ])
-    const req = buildRequest({ user_id: 'user-123' })
+    const req = buildRequest({})
     const res = await GET(req)
     const body = await res.json()
     expect(body.companies).toHaveLength(2)
     expect(body.companies).toContain('Bank A')
     expect(body.companies).toContain('Bank B')
+  })
+
+  it('queries with the authenticated user.id (ignoring any query-param user_id)', async () => {
+    resolveChain([])
+    const req = buildRequest({ user_id: 'attacker-id' })
+    await GET(req)
+    // eq('user_id', ...) must be called with 'user-1' from session, not 'attacker-id'
+    const userIdCalls = mockEq.mock.calls.filter(([col]: [string]) => col === 'user_id')
+    expect(userIdCalls).toHaveLength(1)
+    expect(userIdCalls[0][1]).toBe('user-1')
   })
 })
