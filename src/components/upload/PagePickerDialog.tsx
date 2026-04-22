@@ -21,9 +21,14 @@ import { Loader2, FileText, Sparkles } from 'lucide-react'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
-// Point pdf.js at a CDN-hosted worker matching the installed pdfjs-dist version.
-// For v1 this is fine; if CSP becomes strict we'll self-host the worker from /public.
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
+// Resolve the pdf.js worker through the bundler (Turbopack/Webpack) instead of
+// a CDN. cdnjs/unpkg don't always mirror every pdfjs-dist release, and we hit
+// a 404 on pdfjs-dist@5.4.296. This keeps the worker version pinned to the
+// installed package and works offline.
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString()
 
 export type StatementType = 'actifs' | 'passifs' | 'hors_bilan' | 'compte_resultats'
 type Tag = StatementType | 'ignore'
