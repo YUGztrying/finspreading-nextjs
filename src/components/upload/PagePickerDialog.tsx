@@ -86,6 +86,12 @@ export default function PagePickerDialog({
   const [tags, setTags] = useState<Record<number, Tag>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Pre-download the PDF ourselves so pdf.js doesn't need to issue HTTP Range
+  // requests against the Supabase signed URL. Range support can be flaky on
+  // signed URLs and some CDNs, which made the <Document> component hang
+  // indefinitely on "Chargement du PDF…".
+  const [pdfData, setPdfData] = useState<Uint8Array | null>(null)
+  const [downloading, setDownloading] = useState(false)
 
   // Reset state when dialog opens with a new file
   useEffect(() => {
@@ -94,8 +100,34 @@ export default function PagePickerDialog({
       setTags({})
       setLoading(false)
       setError(null)
+      setPdfData(null)
     }
   }, [open, fileUrl])
+
+  // Download the PDF once per open+fileUrl combination
+  useEffect(() => {
+    if (!open || !fileUrl) return
+    let cancelled = false
+    setDownloading(true)
+    setError(null)
+    fetch(fileUrl)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`)
+        const buf = await r.arrayBuffer()
+        if (!cancelled) setPdfData(new Uint8Array(buf))
+      })
+      .catch((err) => {
+        if (!cancelled) setError(`Impossible de télécharger le PDF : ${err.message}`)
+      })
+      .finally(() => {
+        if (!cancelled) setDownloading(false)
+      })
+    return () => { cancelled = true }
+  }, [open, fileUrl])
+
+  // The file prop for react-pdf's <Document>. Memoized to avoid re-renders
+  // creating a new reference on every state change.
+  const documentFile = useMemo(() => (pdfData ? { data: pdfData } : null), [pdfData])
 
   // Group tagged pages by statement type (sorted ascending within each type)
   const selections = useMemo(() => {
@@ -175,15 +207,21 @@ export default function PagePickerDialog({
 
         {/* Body: thumbnails grid (scrollable) */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          {fileUrl && (
+          {downloading && (
+            <div className="flex items-center justify-center py-20 text-stone-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              Téléchargement du PDF…
+            </div>
+          )}
+          {!downloading && documentFile && (
             <Document
-              file={fileUrl}
+              file={documentFile}
               onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-              onLoadError={(e) => setError(`Chargement du PDF échoué : ${e.message}`)}
+              onLoadError={(e) => setError(`Rendu du PDF échoué : ${e.message}`)}
               loading={
                 <div className="flex items-center justify-center py-20 text-stone-400">
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  Chargement du PDF…
+                  Analyse du PDF…
                 </div>
               }
             >
