@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, FileText, Sparkles } from 'lucide-react'
@@ -129,6 +129,9 @@ export default function PagePickerDialog({
   // creating a new reference on every state change.
   const documentFile = useMemo(() => (pdfData ? { data: pdfData } : null), [pdfData])
 
+  // Click-to-zoom: which page (if any) is currently viewed at full size
+  const [zoomedPage, setZoomedPage] = useState<number | null>(null)
+
   // Group tagged pages by statement type (sorted ascending within each type)
   const selections = useMemo(() => {
     const out: Partial<Record<StatementType, number[]>> = {}
@@ -194,15 +197,15 @@ export default function PagePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && !loading) onClose() }}>
-      <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] flex flex-col p-0 sm:max-w-[95vw]">
         <DialogHeader className="p-6 pb-4 border-b border-stone-100">
           <DialogTitle className="flex items-center gap-3 text-xl font-light text-stone-900">
             <FileText className="w-5 h-5 text-amber-600" />
             Sélection des pages — {fileName}
           </DialogTitle>
-          <p className="text-sm text-stone-500 mt-1">
-            Tague chaque page contenant un état financier. Les pages non taguées seront ignorées.
-          </p>
+          <DialogDescription className="text-sm text-stone-500 mt-1">
+            Tague chaque page contenant un état financier. Clique sur une vignette pour l'agrandir. Les pages non taguées seront ignorées.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Body: thumbnails grid (scrollable) */}
@@ -225,7 +228,7 @@ export default function PagePickerDialog({
                 </div>
               }
             >
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
                 {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => {
                   const tag: Tag = tags[pageNumber] ?? 'ignore'
                   return (
@@ -233,22 +236,27 @@ export default function PagePickerDialog({
                       key={pageNumber}
                       className={`rounded-lg border-2 p-2 transition-all ${TAG_COLORS[tag]}`}
                     >
-                      <div className="relative bg-white rounded overflow-hidden shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => setZoomedPage(pageNumber)}
+                        className="relative bg-white rounded overflow-hidden shadow-sm block w-full hover:ring-2 hover:ring-amber-500 transition-all cursor-zoom-in"
+                        title="Clique pour agrandir"
+                      >
                         <Page
                           pageNumber={pageNumber}
-                          width={160}
+                          width={320}
                           renderAnnotationLayer={false}
                           renderTextLayer={false}
                         />
-                        <div className="absolute top-1 right-1 bg-stone-900/80 text-white text-[10px] px-1.5 py-0.5 rounded">
+                        <div className="absolute top-1.5 right-1.5 bg-stone-900/80 text-white text-xs font-medium px-2 py-0.5 rounded">
                           p.{pageNumber}
                         </div>
-                      </div>
+                      </button>
                       <Select
                         value={tag}
                         onValueChange={(v) => setTags((prev) => ({ ...prev, [pageNumber]: v as Tag }))}
                       >
-                        <SelectTrigger className="h-7 text-xs mt-2 border-stone-200">
+                        <SelectTrigger className="h-8 text-sm mt-2 border-stone-200">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -288,6 +296,28 @@ export default function PagePickerDialog({
           {error && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
               {error}
+            </div>
+          )}
+
+          {/* Zoom overlay — rendered inside the main dialog so it stacks above it */}
+          {zoomedPage !== null && documentFile && (
+            <div
+              className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-6 cursor-zoom-out"
+              onClick={() => setZoomedPage(null)}
+            >
+              <div className="relative max-w-[90vw] max-h-[90vh] overflow-auto bg-white rounded-lg shadow-2xl">
+                <Document file={documentFile} loading={null}>
+                  <Page
+                    pageNumber={zoomedPage}
+                    width={900}
+                    renderAnnotationLayer={false}
+                    renderTextLayer={false}
+                  />
+                </Document>
+                <div className="absolute top-3 right-3 bg-stone-900 text-white text-sm px-3 py-1 rounded shadow">
+                  Page {zoomedPage} — clique pour fermer
+                </div>
+              </div>
             </div>
           )}
 
