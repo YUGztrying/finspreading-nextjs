@@ -125,12 +125,23 @@ export default function PagePickerDialog({
     return () => { cancelled = true }
   }, [open, fileUrl])
 
-  // The file prop for react-pdf's <Document>. Memoized to avoid re-renders
-  // creating a new reference on every state change.
-  const documentFile = useMemo(() => (pdfData ? { data: pdfData } : null), [pdfData])
-
   // Click-to-zoom: which page (if any) is currently viewed at full size
   const [zoomedPage, setZoomedPage] = useState<number | null>(null)
+
+  // react-pdf + pdf.js transfer the ArrayBuffer to a Web Worker, which detaches
+  // the original buffer on the main thread. If we pass the same Uint8Array to
+  // two <Document> instances (thumbnail grid + zoom overlay) the second one
+  // crashes with DataCloneError: "ArrayBuffer ... is already detached".
+  // Fix: give each <Document> its own fresh slice (slice() copies the bytes
+  // into a new buffer). The `pdfData` state is the untouched reference copy.
+  const thumbnailFile = useMemo(
+    () => (pdfData ? { data: pdfData.slice() } : null),
+    [pdfData]
+  )
+  const zoomFile = useMemo(
+    () => (pdfData && zoomedPage !== null ? { data: pdfData.slice() } : null),
+    [pdfData, zoomedPage]
+  )
 
   // Group tagged pages by statement type (sorted ascending within each type)
   const selections = useMemo(() => {
@@ -216,9 +227,9 @@ export default function PagePickerDialog({
               Téléchargement du PDF…
             </div>
           )}
-          {!downloading && documentFile && (
+          {!downloading && thumbnailFile && (
             <Document
-              file={documentFile}
+              file={thumbnailFile}
               onLoadSuccess={({ numPages }) => setNumPages(numPages)}
               onLoadError={(e) => setError(`Rendu du PDF échoué : ${e.message}`)}
               loading={
@@ -300,13 +311,16 @@ export default function PagePickerDialog({
           )}
 
           {/* Zoom overlay — rendered inside the main dialog so it stacks above it */}
-          {zoomedPage !== null && documentFile && (
+          {zoomedPage !== null && zoomFile && (
             <div
               className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-6 cursor-zoom-out"
               onClick={() => setZoomedPage(null)}
             >
-              <div className="relative max-w-[90vw] max-h-[90vh] overflow-auto bg-white rounded-lg shadow-2xl">
-                <Document file={documentFile} loading={null}>
+              <div
+                className="relative max-w-[90vw] max-h-[90vh] overflow-auto bg-white rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Document file={zoomFile} loading={null}>
                   <Page
                     pageNumber={zoomedPage}
                     width={900}
@@ -315,7 +329,7 @@ export default function PagePickerDialog({
                   />
                 </Document>
                 <div className="absolute top-3 right-3 bg-stone-900 text-white text-sm px-3 py-1 rounded shadow">
-                  Page {zoomedPage} — clique pour fermer
+                  Page {zoomedPage} — clique à l'extérieur pour fermer
                 </div>
               </div>
             </div>
