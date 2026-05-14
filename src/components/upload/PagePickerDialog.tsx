@@ -16,7 +16,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, FileText, Sparkles } from 'lucide-react'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
@@ -31,23 +30,51 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString()
 
 export type StatementType = 'actifs' | 'passifs' | 'hors_bilan' | 'compte_resultats'
-type Tag = StatementType | 'ignore'
 
-const TAG_LABELS: Record<Tag, string> = {
+const STATEMENT_TYPES: StatementType[] = ['actifs', 'passifs', 'hors_bilan', 'compte_resultats']
+
+const TAG_LABELS: Record<StatementType, string> = {
   actifs: 'Actifs',
   passifs: 'Passifs',
   hors_bilan: 'Hors-Bilan',
   compte_resultats: 'Compte de Résultats',
-  ignore: 'Ignorer',
 }
 
-const TAG_COLORS: Record<Tag, string> = {
-  actifs: 'border-emerald-400 ring-emerald-200 bg-emerald-50',
-  passifs: 'border-blue-400 ring-blue-200 bg-blue-50',
-  hors_bilan: 'border-orange-400 ring-orange-200 bg-orange-50',
-  compte_resultats: 'border-purple-400 ring-purple-200 bg-purple-50',
-  ignore: 'border-stone-200 bg-white',
+// Short labels for the per-thumbnail checkbox chips (limited horizontal space)
+const TAG_SHORT_LABELS: Record<StatementType, string> = {
+  actifs: 'Actifs',
+  passifs: 'Passifs',
+  hors_bilan: 'H-Bilan',
+  compte_resultats: 'CR',
 }
+
+// Selected / idle styles per type. Used both for the thumbnail card border
+// (when exactly one type is selected) and for the chip backgrounds.
+const TAG_COLORS: Record<StatementType, { border: string; chipOn: string; chipOff: string }> = {
+  actifs: {
+    border: 'border-emerald-400 ring-emerald-200 bg-emerald-50',
+    chipOn: 'bg-emerald-600 text-white border-emerald-600',
+    chipOff: 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50',
+  },
+  passifs: {
+    border: 'border-blue-400 ring-blue-200 bg-blue-50',
+    chipOn: 'bg-blue-600 text-white border-blue-600',
+    chipOff: 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50',
+  },
+  hors_bilan: {
+    border: 'border-orange-400 ring-orange-200 bg-orange-50',
+    chipOn: 'bg-orange-600 text-white border-orange-600',
+    chipOff: 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50',
+  },
+  compte_resultats: {
+    border: 'border-purple-400 ring-purple-200 bg-purple-50',
+    chipOn: 'bg-purple-600 text-white border-purple-600',
+    chipOff: 'bg-white text-purple-700 border-purple-300 hover:bg-purple-50',
+  },
+}
+
+const IDLE_CARD = 'border-stone-200 bg-white'
+const MULTI_CARD = 'border-amber-400 ring-amber-200 bg-amber-50'
 
 export interface ExtractFromPagesResult {
   company_name: string
@@ -124,7 +151,10 @@ export default function PagePickerDialog({
   onExtracted,
 }: PagePickerDialogProps) {
   const [numPages, setNumPages] = useState<number>(0)
-  const [tags, setTags] = useState<Record<number, Tag>>({})
+  // Multi-tag: a single page can hold ACTIF + PASSIF side-by-side (typical for
+  // microfinance bilans) so we let the user attach 1..N statement types per page.
+  // Empty array = "ignore".
+  const [tags, setTags] = useState<Record<number, StatementType[]>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Pre-download the PDF ourselves so pdf.js doesn't need to issue HTTP Range
@@ -184,14 +214,18 @@ export default function PagePickerDialog({
     [pdfData, zoomedPage]
   )
 
-  // Group tagged pages by statement type (sorted ascending within each type)
+  // Group tagged pages by statement type (sorted ascending within each type).
+  // A page tagged with N types appears in N buckets — that's exactly what
+  // /api/extract-from-pages expects to spawn one sub-PDF per type.
   const selections = useMemo(() => {
     const out: Partial<Record<StatementType, number[]>> = {}
-    for (const [pageStr, tag] of Object.entries(tags)) {
-      if (tag === 'ignore') continue
+    for (const [pageStr, types] of Object.entries(tags)) {
+      if (!types || types.length === 0) continue
       const page = Number(pageStr)
-      if (!out[tag]) out[tag] = []
-      out[tag]!.push(page)
+      for (const t of types) {
+        if (!out[t]) out[t] = []
+        out[t]!.push(page)
+      }
     }
     for (const type of Object.keys(out) as StatementType[]) {
       out[type]!.sort((a, b) => a - b)
@@ -201,12 +235,21 @@ export default function PagePickerDialog({
 
   const selectedTypeCount = (Object.keys(selections) as StatementType[]).length
 
-  const summaryByType = (Object.entries(TAG_LABELS) as [Tag, string][])
-    .filter(([t]) => t !== 'ignore')
-    .map(([t, label]) => {
-      const pages = selections[t as StatementType] ?? []
-      return { type: t as StatementType, label, pages }
+  const summaryByType = STATEMENT_TYPES.map((t) => ({
+    type: t,
+    label: TAG_LABELS[t],
+    pages: selections[t] ?? [],
+  }))
+
+  const togglePageTag = (page: number, type: StatementType) => {
+    setTags((prev) => {
+      const current = prev[page] ?? []
+      const next = current.includes(type)
+        ? current.filter((t) => t !== type)
+        : [...current, type]
+      return { ...prev, [page]: next }
     })
+  }
 
   async function handleExtract() {
     if (!fileUrl) return
@@ -256,7 +299,9 @@ export default function PagePickerDialog({
             Sélection des pages — {fileName}
           </DialogTitle>
           <DialogDescription className="text-sm text-stone-500 mt-1">
-            Tague chaque page contenant un état financier. Clique sur une vignette pour l'agrandir. Les pages non taguées seront ignorées.
+            Tague chaque page contenant un état financier — plusieurs tags possibles si la page contient
+            plusieurs sections (ex. ACTIF + PASSIF côte à côte sur les bilans microfinance).
+            Clique sur une vignette pour l'agrandir. Les pages non taguées seront ignorées.
           </DialogDescription>
         </DialogHeader>
 
@@ -282,11 +327,17 @@ export default function PagePickerDialog({
             >
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
                 {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => {
-                  const tag: Tag = tags[pageNumber] ?? 'ignore'
+                  const pageTags = tags[pageNumber] ?? []
+                  const cardClass =
+                    pageTags.length === 0
+                      ? IDLE_CARD
+                      : pageTags.length === 1
+                        ? TAG_COLORS[pageTags[0]].border
+                        : MULTI_CARD
                   return (
                     <div
                       key={pageNumber}
-                      className={`rounded-lg border-2 p-2 transition-all ${TAG_COLORS[tag]}`}
+                      className={`rounded-lg border-2 p-2 transition-all ${cardClass}`}
                     >
                       <button
                         type="button"
@@ -303,21 +354,27 @@ export default function PagePickerDialog({
                           p.{pageNumber}
                         </div>
                       </button>
-                      <Select
-                        value={tag}
-                        onValueChange={(v) => setTags((prev) => ({ ...prev, [pageNumber]: v as Tag }))}
+                      <div
+                        className="grid grid-cols-2 gap-1.5 mt-2"
+                        role="group"
+                        aria-label={`Tags page ${pageNumber}`}
                       >
-                        <SelectTrigger className="h-8 text-sm mt-2 border-stone-200">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ignore">Ignorer</SelectItem>
-                          <SelectItem value="actifs">Actifs</SelectItem>
-                          <SelectItem value="passifs">Passifs</SelectItem>
-                          <SelectItem value="compte_resultats">Compte de Résultats</SelectItem>
-                          <SelectItem value="hors_bilan">Hors-Bilan</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        {STATEMENT_TYPES.map((type) => {
+                          const on = pageTags.includes(type)
+                          const c = TAG_COLORS[type]
+                          return (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => togglePageTag(pageNumber, type)}
+                              aria-pressed={on}
+                              className={`text-xs font-medium px-2 py-1 rounded border transition-colors ${on ? c.chipOn : c.chipOff}`}
+                            >
+                              {TAG_SHORT_LABELS[type]}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
                   )
                 })}
@@ -334,7 +391,7 @@ export default function PagePickerDialog({
                 key={type}
                 className={`text-xs px-2.5 py-1 rounded-md border ${
                   pages.length > 0
-                    ? TAG_COLORS[type].replace('bg-', 'bg-').replace(/\s+/g, ' ')
+                    ? TAG_COLORS[type].border
                     : 'bg-stone-50 text-stone-400 border-stone-200'
                 }`}
               >

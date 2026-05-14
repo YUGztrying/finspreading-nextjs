@@ -76,7 +76,10 @@ Pour les en-têtes "ENGAGEMENTS DONNÉS" / "ENGAGEMENTS REÇUS" eux-mêmes, ajou
 
   return `Tu es un expert comptable spécialisé dans l'analyse d'états financiers ${context} (format BCEAO/OHADA).
 
-Ce PDF contient UNIQUEMENT le tableau "${label}" d'une institution financière. Extrais TOUTES les lignes du tableau.${typeSpecificHint}
+Ce PDF contient le tableau "${label}" d'une institution financière. La page peut contenir
+plusieurs tableaux côte à côte (par exemple ACTIF + PASSIF sur la même page de bilan microfinance, ou
+COMPTE DE RÉSULTAT + HORS-BILAN). Dans ce cas, extrais UNIQUEMENT la section "${label}" et ignore
+strictement les autres sections présentes. Extrais TOUTES les lignes de cette section.${typeSpecificHint}
 
 INSTRUCTIONS:
 1. Identifie le nom de l'institution (cherche en en-tête de page ou dans une cellule)
