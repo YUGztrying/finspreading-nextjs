@@ -73,6 +73,21 @@ describe('lookupActifCodeByDescription', () => {
     expect(lookupActifCodeByDescription('')).toBeNull()
     expect(lookupActifCodeByDescription(null)).toBeNull()
   })
+
+  it('matches PCB (bank) section headers seen on hybrid micro reports', () => {
+    // Some auditors print microfinance bilans with PCB BCEAO bank wording for
+    // the section headers. We need to recognize those too.
+    expect(
+      lookupActifCodeByDescription('OPERATIONS DE TRESORERIE AVEC LES ETABLISSEMENTS DE CREDIT')
+    ).toBe('A01')
+    expect(
+      lookupActifCodeByDescription('OPERATIONS AVEC LES MEMBRES, BENEFICIAIRES ET LA CLIENTELE')
+    ).toBe('B01')
+    // Without the leading "ET" — also seen
+    expect(
+      lookupActifCodeByDescription('Opérations de trésorerie avec les institutions financières')
+    ).toBe('A01')
+  })
 })
 
 describe('lookupPassifCodeByDescription', () => {

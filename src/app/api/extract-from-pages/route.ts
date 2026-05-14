@@ -85,8 +85,8 @@ INSTRUCTIONS:
 1. Identifie le nom de l'institution (cherche en en-tête de page ou dans une cellule)
 2. Identifie les périodes/exercices présentés (dans l'en-tête des colonnes numériques)
 3. Pour CHAQUE ligne du tableau, extrais:
-   - Le code POSTE (souvent un numéro 1-20 ou un code alphanumérique comme RBA_0010, MFA_A11). Si pas de code visible, utilise "".
-   - La description exacte (libellé en français)
+   - Le code POSTE: soit le code alphanumérique exact visible dans le PDF (ex. RBA_0010, A01, A10, B2D, F1A, L20), soit le numéro de poste si c'est tout ce que le tableau affiche (1, 2, 3…). Si AUCUN code n'est lisible, utilise "" — n'invente JAMAIS un code et ne réutilise PAS un code d'une autre ligne.
+   - La description exacte (libellé en français), telle qu'elle est imprimée. Si la ligne est mal scannée ou floue, conserve le texte tel que tu le lis sans le "corriger" pour qu'il ressemble à un poste connu — la normalisation downstream préfère un libellé fidèle (même imparfait) à un code inventé.
    - Les montants pour chaque période (en nombres, pas en string; utilise 0 si vide ou "-")
    - is_subtotal: true si la ligne est un sous-total ou un en-tête de section
    - is_total: true pour la ligne TOTAL finale

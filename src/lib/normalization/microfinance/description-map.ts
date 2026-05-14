@@ -38,10 +38,19 @@ export function normalizeDescription(s: string | null | undefined): string {
 // Keys are pre-normalized (apply normalizeDescription) so lookups are O(1).
 // Values are the raw poste codes — the normalizer prepends MFA_ itself.
 export const MF_ACTIF_DESC_TO_CODE: Record<string, string> = {
-  // Section headers
+  // Section headers — multiple wordings are seen in the wild:
+  //   - SYSCOA-IMF microfinance plan: "...INSTITUTIONS FINANCIERES" / "...OU CLIENTS"
+  //   - PCB BCEAO bank plan reused by some auditors on micro reports:
+  //     "...ETABLISSEMENTS DE CREDIT" / "...ET LA CLIENTELE"
+  //   - Short forms occasionally appear standalone
   'operations de tresorerie et avec les institutions financieres': 'A01',
+  'operations de tresorerie avec les institutions financieres': 'A01',
+  'operations de tresorerie et avec les etablissements de credit': 'A01',
+  'operations de tresorerie avec les etablissements de credit': 'A01',
   'operations de tresorerie': 'A01',
   'operations avec les membres beneficiaires ou clients': 'B01',
+  'operations avec les membres beneficiaires et la clientele': 'B01',
+  'operations avec les membres beneficiaires ou la clientele': 'B01',
   'operations avec les membres': 'B01',
   'operations sur titres et operations diverses': 'C01',
   'operations sur titres': 'C01',
@@ -138,9 +147,14 @@ export const MF_ACTIF_DESC_TO_CODE: Record<string, string> = {
 // fallback to avoid wrong matches. Only descriptions that are unique across
 // the entire passif side are included.
 export const MF_PASSIF_DESC_TO_CODE: Record<string, string> = {
-  // Section headers
+  // Section headers — same multi-wording as actifs (PCB vs SYSCOA-IMF).
   'operations de tresorerie et avec les institutions financieres': 'F01',
+  'operations de tresorerie avec les institutions financieres': 'F01',
+  'operations de tresorerie et avec les etablissements de credit': 'F01',
+  'operations de tresorerie avec les etablissements de credit': 'F01',
   'operations avec les membres beneficiaires ou clients': 'G01',
+  'operations avec les membres beneficiaires et la clientele': 'G01',
+  'operations avec les membres beneficiaires ou la clientele': 'G01',
   'operations avec les membres': 'G01',
   'operations sur titres et operations diverses': 'H01',
   'operations sur titres': 'H01',
