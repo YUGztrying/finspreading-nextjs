@@ -3,6 +3,7 @@
 // Ported from Base44: normalizeActifKeyMicro
 
 import { UnmappedLine } from '../types'
+import { lookupActifCodeByDescription } from './description-map'
 
 // Mapping based on ACTIFS.pdf (microfinance)
 // Convention: MFA_<CODE POSTE>
@@ -137,6 +138,15 @@ export function normalizeActifKeyMicro(
   // 🔹 Direct mapping by exact code (recommended)
   if (MF_ASSET_MAP[posteStr]) {
     return MF_ASSET_MAP[posteStr]
+  }
+
+  // 🔹 Description-based fallback: SYSCOA-IMF published reports number postes
+  // 1, 2, 3, … with no alphanumeric code, so the exact-code lookup above misses
+  // even when the line is a perfectly valid BCEAO poste. Try matching the
+  // canonical description before giving up.
+  const codeFromDesc = lookupActifCodeByDescription(desc)
+  if (codeFromDesc && MF_ASSET_MAP[codeFromDesc]) {
+    return MF_ASSET_MAP[codeFromDesc]
   }
 
   // 🔹 Fallback: Generate unique key for unmapped lines

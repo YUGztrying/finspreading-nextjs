@@ -3,6 +3,7 @@
 // Ported from Base44: normalizePassifKeyMicro
 
 import { UnmappedLine } from '../types'
+import { lookupPassifCodeByDescription } from './description-map'
 
 // Mapping based on PASSIFS.pdf (microfinance)
 // Convention: MFP_<CODE POSTE>
@@ -126,6 +127,12 @@ export function normalizePassifKeyMicro(
   // 🔹 Direct mapping by exact code
   if (MF_PASSIF_MAP[posteStr]) {
     return MF_PASSIF_MAP[posteStr]
+  }
+
+  // 🔹 Description-based fallback (see description-map.ts for rationale).
+  const codeFromDesc = lookupPassifCodeByDescription(desc)
+  if (codeFromDesc && MF_PASSIF_MAP[codeFromDesc]) {
+    return MF_PASSIF_MAP[codeFromDesc]
   }
 
   // 🔹 Fallback: Generate unique key for unmapped lines
