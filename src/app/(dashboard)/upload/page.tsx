@@ -111,7 +111,23 @@ export default function UploadPage() {
       }, 500)
 
       // Step 1: Upload file to Supabase Storage
-      const storedFileName = `${Date.now()}_${file.name}`
+      // Supabase Storage rejects keys with parentheses, spaces, accents, and
+      // other non-ASCII characters with "Invalid key" errors. Slugify the
+      // filename for the storage key while keeping file.name for display.
+      const sanitizeForStorage = (name: string) => {
+        const lastDot = name.lastIndexOf('.')
+        const stem = lastDot > 0 ? name.slice(0, lastDot) : name
+        const ext = lastDot > 0 ? name.slice(lastDot) : ''
+        const safeStem = stem
+          .normalize('NFD')
+          .replace(/[̀-ͯ]/g, '') // strip combining accents
+          .replace(/[^a-zA-Z0-9._-]+/g, '_') // collapse anything else into _
+          .replace(/_+/g, '_')
+          .replace(/^_|_$/g, '')
+        const safeExt = ext.replace(/[^a-zA-Z0-9.]+/g, '')
+        return (safeStem || 'file') + safeExt
+      }
+      const storedFileName = `${Date.now()}_${sanitizeForStorage(file.name)}`
       const filePath = `${user.id}/${storedFileName}`
 
       const { data: uploadData, error: uploadError } = await supabase.storage
