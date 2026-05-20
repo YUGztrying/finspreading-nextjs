@@ -427,6 +427,7 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
                 lineItems={statement.line_items}
                 onSave={handleSave}
                 readOnly={saving}
+                statementType="actifs"
               />
             </CardContent>
           </Card>

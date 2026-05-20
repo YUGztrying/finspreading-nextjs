@@ -1,11 +1,14 @@
 // src/components/statements/StatementTable.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { LineItem } from '@/types/database.types'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Trash2, Plus, Save } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Trash2, Plus, Save, Info, AlertTriangle } from 'lucide-react'
+import CodePicker from './CodePicker'
+import { isUndefinedPoste } from '@/lib/normalization/microfinance/catalog'
 
 interface StatementTableProps {
   periods: string[]
@@ -30,6 +33,14 @@ export default function StatementTable({
   setHasChanges(false)
 }, [initialLineItems])
   const isIncomeStatement = statementType === 'compte_resultats'
+  const isHorsBilan = statementType === 'hors_bilan'
+
+  // Count unmapped lines for the pedagogical banner
+  const unmappedCount = useMemo(
+    () => lineItems.filter((l) => isUndefinedPoste(l.poste) && !l.is_total && !l.is_subtotal).length,
+    [lineItems]
+  )
+  const [showHelp, setShowHelp] = useState(false)
 
   const updateAmount = (lineIndex: number, periodIndex: number, value: string) => {
     const newLineItems = [...lineItems]
@@ -94,6 +105,61 @@ export default function StatementTable({
 
   return (
     <div className="space-y-4">
+      {/* Pedagogical banner — explains why codes matter */}
+      {!readOnly && !isHorsBilan && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <Info className="h-4 w-4 text-amber-700" />
+          <AlertDescription className="text-amber-900">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex-1 min-w-[280px]">
+                {unmappedCount > 0 ? (
+                  <span>
+                    <strong>{unmappedCount} ligne{unmappedCount > 1 ? 's' : ''}</strong> sans code
+                    SYSCOA-IMF ne {unmappedCount > 1 ? 'seront pas prises' : 'sera pas prise'} en
+                    compte dans les ratios prudentiels. Cliquez sur la cellule rouge « Code à
+                    assigner » pour la corriger.
+                  </span>
+                ) : (
+                  <span>
+                    Chaque ligne porte un code SYSCOA-IMF qui détermine son agrégation dans les
+                    ratios. Cliquez sur un code pour le modifier.
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHelp((v) => !v)}
+                className="text-xs text-amber-700 hover:text-amber-800 underline whitespace-nowrap"
+              >
+                {showHelp ? 'Masquer l\'aide' : 'Pourquoi c\'est important ?'}
+              </button>
+            </div>
+            {showHelp && (
+              <div className="mt-3 pt-3 border-t border-amber-200 text-xs space-y-1.5">
+                <p>
+                  Les codes SYSCOA-IMF (ex. <code className="bg-amber-100 px-1 rounded">MFA_A10</code> = Valeurs en caisse,
+                  {' '}<code className="bg-amber-100 px-1 rounded">MFP_L20</code> = Fonds affectés) sont la <strong>clé</strong> qui
+                  permet à l'analyse de regrouper la ligne dans le bon agrégat
+                  (Trésorerie, Crédits clientèle, Fonds propres…).
+                </p>
+                <p>
+                  Sans code correct, la ligne est <strong>ignorée</strong> par les ratios de liquidité,
+                  solvabilité, RSE, CAMELS, etc. — elle n'existe plus dans l'analyse.
+                </p>
+                <p>
+                  Une ligne marquée{' '}
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 border border-red-200 text-red-700 text-[10px] font-mono">
+                    <AlertTriangle className="w-3 h-3" /> Code à assigner
+                  </span>{' '}
+                  signifie que l'extraction PDF n'a pas réussi à reconnaître le poste —
+                  c'est à vous de choisir le code dans la liste.
+                </p>
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header with save button */}
       {!readOnly && hasChanges && (
         <div className="flex justify-end">
@@ -114,7 +180,7 @@ export default function StatementTable({
           <table className="w-full table-auto">
             <thead className="bg-stone-100 border-b border-stone-200">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-stone-700 w-44">
+                <th className="px-4 py-3 text-left text-sm font-medium text-stone-700 w-64 min-w-[240px]">
                   Code Poste
                 </th>
                 {/* Make description flexible and large so full text is visible */}
@@ -156,11 +222,19 @@ export default function StatementTable({
                   <td className="px-4 py-2 align-top">
                     {readOnly ? (
                       <span className="text-sm text-stone-900 font-mono">{line.poste}</span>
-                    ) : (
+                    ) : isHorsBilan ? (
+                      // Hors-bilan has no codified catalog yet — keep free text input
                       <Input
                         value={line.poste}
                         onChange={(e) => updatePoste(lineIdx, e.target.value)}
                         className="text-sm h-8 border-stone-200 font-mono min-w-[120px]"
+                      />
+                    ) : (
+                      <CodePicker
+                        value={line.poste}
+                        description={line.description}
+                        statementType={statementType}
+                        onChange={(newKey) => updatePoste(lineIdx, newKey)}
                       />
                     )}
                   </td>
@@ -234,7 +308,7 @@ export default function StatementTable({
       )}
 
       {/* Legend */}
-      <div className="flex gap-6 text-xs text-stone-600">
+      <div className="flex gap-6 text-xs text-stone-600 flex-wrap">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-amber-50 border border-stone-200 rounded"></div>
           <span>Total</span>
@@ -247,6 +321,14 @@ export default function StatementTable({
           <div className="w-4 h-4 bg-blue-50 border border-stone-200 rounded"></div>
           <span>Ajouté manuellement</span>
         </div>
+        {!isHorsBilan && (
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-red-50 border border-red-300 rounded flex items-center justify-center">
+              <AlertTriangle className="w-2.5 h-2.5 text-red-700" />
+            </div>
+            <span>Code à assigner (ignoré par les ratios)</span>
+          </div>
+        )}
       </div>
     </div>
   )
