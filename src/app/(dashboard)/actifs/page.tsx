@@ -428,6 +428,7 @@ const passifsAmounts = passifsStatement?.periods.map((_, periodIdx) => {
                 onSave={handleSave}
                 readOnly={saving}
                 statementType="actifs"
+                institutionType={statement.type_institution}
               />
             </CardContent>
           </Card>

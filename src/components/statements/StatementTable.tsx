@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Trash2, Plus, Save, Info, AlertTriangle } from 'lucide-react'
 import CodePicker from './CodePicker'
-import { isUndefinedPoste } from '@/lib/normalization/microfinance/catalog'
+import { isUndefinedPoste, chartLabel, type InstitutionType } from '@/lib/normalization/microfinance/catalog'
 
 interface StatementTableProps {
   periods: string[]
@@ -17,6 +17,8 @@ interface StatementTableProps {
   readOnly?: boolean
   // optional: pass the statement type so we can adapt layout for compte_resultats
   statementType?: 'actifs' | 'passifs' | 'hors_bilan' | 'compte_resultats' | string
+  // optional: drives picker scope (bank PCB BCEAO vs microfinance SYSCOA-IMF)
+  institutionType?: InstitutionType | string
 }
 
 export default function StatementTable({
@@ -24,7 +26,8 @@ export default function StatementTable({
   lineItems: initialLineItems,
   onSave,
   readOnly = false,
-  statementType
+  statementType,
+  institutionType,
 }: StatementTableProps) {
   const [lineItems, setLineItems] = useState<LineItem[]>(initialLineItems)
   const [hasChanges, setHasChanges] = useState(false)
@@ -34,6 +37,8 @@ export default function StatementTable({
 }, [initialLineItems])
   const isIncomeStatement = statementType === 'compte_resultats'
   const isHorsBilan = statementType === 'hors_bilan'
+  const plan = chartLabel(institutionType)
+  const isBank = institutionType === 'banque'
 
   // Count unmapped lines for the pedagogical banner
   const unmappedCount = useMemo(
@@ -114,14 +119,14 @@ export default function StatementTable({
               <div className="flex-1 min-w-[280px]">
                 {unmappedCount > 0 ? (
                   <span>
-                    <strong>{unmappedCount} ligne{unmappedCount > 1 ? 's' : ''}</strong> sans code
-                    SYSCOA-IMF ne {unmappedCount > 1 ? 'seront pas prises' : 'sera pas prise'} en
+                    <strong>{unmappedCount} ligne{unmappedCount > 1 ? 's' : ''}</strong> sans code{' '}
+                    {plan} ne {unmappedCount > 1 ? 'seront pas prises' : 'sera pas prise'} en
                     compte dans les ratios prudentiels. Cliquez sur la cellule rouge « Code à
                     assigner » pour la corriger.
                   </span>
                 ) : (
                   <span>
-                    Chaque ligne porte un code SYSCOA-IMF qui détermine son agrégation dans les
+                    Chaque ligne porte un code {plan} qui détermine son agrégation dans les
                     ratios. Cliquez sur un code pour le modifier.
                   </span>
                 )}
@@ -137,10 +142,20 @@ export default function StatementTable({
             {showHelp && (
               <div className="mt-3 pt-3 border-t border-amber-200 text-xs space-y-1.5">
                 <p>
-                  Les codes SYSCOA-IMF (ex. <code className="bg-amber-100 px-1 rounded">MFA_A10</code> = Valeurs en caisse,
-                  {' '}<code className="bg-amber-100 px-1 rounded">MFP_L20</code> = Fonds affectés) sont la <strong>clé</strong> qui
-                  permet à l'analyse de regrouper la ligne dans le bon agrégat
-                  (Trésorerie, Crédits clientèle, Fonds propres…).
+                  Les codes {plan}{' '}
+                  {isBank ? (
+                    <>
+                      (ex. <code className="bg-amber-100 px-1 rounded">ACTIF_01</code> = Caisse,
+                      Banque Centrale, CCP, <code className="bg-amber-100 px-1 rounded">PASSIF_03</code> = Dettes clientèle)
+                    </>
+                  ) : (
+                    <>
+                      (ex. <code className="bg-amber-100 px-1 rounded">MFA_A10</code> = Valeurs en caisse,
+                      {' '}<code className="bg-amber-100 px-1 rounded">MFP_L20</code> = Fonds affectés)
+                    </>
+                  )}{' '}
+                  sont la <strong>clé</strong> qui permet à l'analyse de regrouper la ligne dans le
+                  bon agrégat (Trésorerie, Crédits clientèle, Fonds propres…).
                 </p>
                 <p>
                   Sans code correct, la ligne est <strong>ignorée</strong> par les ratios de liquidité,
@@ -234,6 +249,7 @@ export default function StatementTable({
                         value={line.poste}
                         description={line.description}
                         statementType={statementType}
+                        institutionType={institutionType}
                         onChange={(newKey) => updatePoste(lineIdx, newKey)}
                       />
                     )}

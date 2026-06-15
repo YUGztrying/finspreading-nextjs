@@ -1,26 +1,31 @@
 // src/lib/normalization/microfinance/catalog.ts
-// Single source of truth for the SYSCOA-IMF microfinance code picker UI.
+// Single source of truth for the financial-statement code picker UI — both
+// microfinance (SYSCOA-IMF) and bank (PCB BCEAO) plans.
 //
-// Each entry maps a normalized full key (MFA_A10, MFP_F1A, MFC_R08, …) to its
-// canonical French label and the statement section it belongs to. The picker
-// reads this catalog to render a searchable list grouped by section letter.
+// Each entry maps a normalized full key (MFA_A10 / MFP_F1A / MFC_R08 / ACTIF_01 /
+// PASSIF_03 / CR_10 …) to its canonical French label, the statement section it
+// belongs to, and the institution type it applies to. The picker filters by
+// (section, institutionType) before showing entries.
 //
 // Note on the MFP_ prefix collision: it is used both for microfinance Passifs
 // (F/G/H/K/L codes) and microfinance Produits (V/W/X/Z codes). The `section`
-// field disambiguates — the picker filters by section before showing entries.
+// field disambiguates.
 
 export type CatalogSection = 'actif' | 'passif' | 'hors_bilan' | 'compte_resultats'
+export type InstitutionType = 'banque' | 'microfinance'
 
 export interface CatalogEntry {
   /** Full normalized key as stored in line.poste */
   fullKey: string
-  /** Raw poste code (A10, F1A, R08…) — the part after the prefix */
+  /** Raw poste code (A10, F1A, R08, 01, 03…) — the part after the prefix */
   rawCode: string
   /** Canonical French label */
   label: string
   /** Section the entry belongs to */
   section: CatalogSection
-  /** Group letter for visual grouping in the picker (A, B, C, D, E, F, G, H, K, L, R, S, T, V, W, X) */
+  /** Institution type the entry applies to */
+  institutionType: InstitutionType
+  /** Group key for visual grouping in the picker (e.g. A, B, C, "01-04", "10-16") */
   group: string
   /** Group title shown in the picker section header */
   groupTitle: string
@@ -243,6 +248,7 @@ function makeEntry(
     rawCode,
     label,
     section,
+    institutionType: 'microfinance',
     group: groupLetter,
     groupTitle: groups[groupLetter] ?? groupLetter,
   }
@@ -257,6 +263,7 @@ function buildActifs(): CatalogEntry[] {
     rawCode: 'E90',
     label: 'TOTAL ACTIF',
     section: 'actif',
+    institutionType: 'microfinance',
     group: 'E',
     groupTitle: ACTIF_GROUPS.E,
   })
@@ -272,6 +279,7 @@ function buildPassifs(): CatalogEntry[] {
     rawCode: 'L90',
     label: 'TOTAL PASSIF',
     section: 'passif',
+    institutionType: 'microfinance',
     group: 'L',
     groupTitle: PASSIF_GROUPS.L,
   })
@@ -283,15 +291,199 @@ function buildCompteResultats(): CatalogEntry[] {
     // label here is already "MFC_R08 - Description" from getAvailableMappings
     // strip the "MFX_XXX - " prefix to get the clean label
     const cleanLabel = label.replace(/^MF[A-Z]_[A-Z0-9]+\s*-\s*/, '')
-    const [prefix, rawCode] = code.split('_') as ['MFC' | 'MFP', string]
+    const [, rawCode] = code.split('_') as ['MFC' | 'MFP', string]
     const groupLetter = rawCode[0]
     return {
       fullKey: code,
       rawCode,
       label: cleanLabel,
       section: 'compte_resultats',
+      institutionType: 'microfinance',
       group: groupLetter,
       groupTitle: CR_GROUPS[groupLetter] ?? groupLetter,
+    }
+  })
+}
+
+// ─── BANK PCB BCEAO ──────────────────────────────────────────────────────────
+// Source: src/lib/normalization/banks/{actifs,passifs,compte-resultats}.ts —
+// labels reconstructed from inline comments / keyword maps in those files plus
+// the published PCB BCEAO chart. Codes are simpler than SYSCOA-IMF: actifs run
+// 01→14, passifs 01→16, CR 01→20. Each section is split into a few logical
+// groups so the picker stays scannable.
+
+const BANK_ACTIF_GROUPS: Record<string, string> = {
+  '01-06': '01–06 — Opérations interbancaires & sur titres',
+  '07-09': '07–09 — Autres actifs & régularisation',
+  '10-12': '10–12 — Titres de participation & prêts subordonnés',
+  '13-14': '13–14 — Immobilisations',
+  TOTAL: 'Total',
+}
+
+const BANK_PASSIF_GROUPS: Record<string, string> = {
+  '01-04': '01–04 — Dettes (interbancaires, clientèle, titres émis)',
+  '05-06': '05–06 — Autres passifs & régularisation',
+  '07-08': '07–08 — Provisions & emprunts subordonnés',
+  '09-16': '09–16 — Capitaux propres et assimilés',
+  TOTAL: 'Total',
+}
+
+const BANK_CR_GROUPS: Record<string, string> = {
+  '01-09': '01–09 — Produits et charges d\'exploitation bancaire',
+  '10': '10 — Produit Net Bancaire',
+  '11-14': '11–14 — Charges générales & résultat brut',
+  '15-16': '15–16 — Coût du risque & résultat d\'exploitation',
+  '17-20': '17–20 — Hors exploitation & résultat net',
+}
+
+const BANK_ACTIFS: Array<[string, string]> = [
+  ['01', 'Caisse, Banque Centrale, CCP'],
+  ['02', 'Effets publics et valeurs assimilés'],
+  ['03', 'Créances interbancaires'],
+  ['04', 'Créances clientèle'],
+  ['05', 'Obligations et titres à revenu fixe'],
+  ['06', 'Actions et titres à revenu variable'],
+  ['07', 'Actionnaires ou associés'],
+  ['08', 'Autres actifs'],
+  ['09', 'Comptes de régularisation'],
+  ['10', 'Participations long terme'],
+  ['11', 'Parts dans entreprises liées'],
+  ['12', 'Prêts subordonnés'],
+  ['13', 'Immobilisations incorporelles'],
+  ['14', 'Immobilisations corporelles'],
+]
+
+const BANK_PASSIFS: Array<[string, string]> = [
+  ['01', 'Banque Centrale, CCP'],
+  ['02', 'Dettes interbancaires'],
+  ['03', 'Dettes clientèle'],
+  ['04', 'Dettes représentées par un titre'],
+  ['05', 'Autres passifs'],
+  ['06', 'Comptes de régularisation'],
+  ['07', 'Provisions'],
+  ['08', 'Emprunts et titres émis subordonnés'],
+  ['09', 'Capitaux propres et ressources assimilées'],
+  ['10', 'Capital souscrit versé'],
+  ['11', 'Primes liées au capital'],
+  ['12', 'Réserves'],
+  ['13', 'Écart de réévaluation'],
+  ['14', 'Provisions réglementées'],
+  ['15', 'Report à nouveau'],
+  ['16', 'Résultat de l\'exercice'],
+]
+
+const BANK_CR: Array<[string, string]> = [
+  ['01', 'Intérêts et produits assimilés'],
+  ['02', 'Intérêts et charges assimilées'],
+  ['03', 'Revenus des titres à revenu variable'],
+  ['04', 'Commissions (Produits)'],
+  ['05', 'Commissions (Charges)'],
+  ['06', 'Gains ou pertes nets sur opérations des portefeuilles de négociation'],
+  ['07', 'Gains ou pertes nets sur opérations des portefeuilles de placement et assimilés'],
+  ['08', 'Autres produits d\'exploitation bancaire'],
+  ['09', 'Autres charges d\'exploitation bancaire'],
+  ['10', 'Produit Net Bancaire (PNB)'],
+  ['11', 'Subventions d\'investissement'],
+  ['12', 'Charges générales d\'exploitation'],
+  ['13', 'Dotations aux amortissements et aux dépréciations'],
+  ['14', 'Résultat brut d\'exploitation'],
+  ['15', 'Coût du risque'],
+  ['16', 'Résultat d\'exploitation'],
+  ['17', 'Gains ou pertes nets sur actifs immobilisés'],
+  ['18', 'Résultat avant impôt'],
+  ['19', 'Impôts sur les bénéfices'],
+  ['20', 'Résultat net'],
+]
+
+function bankActifGroup(rawCode: string): string {
+  const n = parseInt(rawCode, 10)
+  if (n >= 1 && n <= 6) return '01-06'
+  if (n >= 7 && n <= 9) return '07-09'
+  if (n >= 10 && n <= 12) return '10-12'
+  if (n >= 13 && n <= 14) return '13-14'
+  return 'TOTAL'
+}
+
+function bankPassifGroup(rawCode: string): string {
+  const n = parseInt(rawCode, 10)
+  if (n >= 1 && n <= 4) return '01-04'
+  if (n >= 5 && n <= 6) return '05-06'
+  if (n >= 7 && n <= 8) return '07-08'
+  if (n >= 9 && n <= 16) return '09-16'
+  return 'TOTAL'
+}
+
+function bankCRGroup(rawCode: string): string {
+  const n = parseInt(rawCode, 10)
+  if (n >= 1 && n <= 9) return '01-09'
+  if (n === 10) return '10'
+  if (n >= 11 && n <= 14) return '11-14'
+  if (n >= 15 && n <= 16) return '15-16'
+  if (n >= 17 && n <= 20) return '17-20'
+  return ''
+}
+
+function buildBankActifs(): CatalogEntry[] {
+  const entries: CatalogEntry[] = BANK_ACTIFS.map(([rawCode, label]) => {
+    const group = bankActifGroup(rawCode)
+    return {
+      fullKey: `ACTIF_${rawCode}`,
+      rawCode,
+      label,
+      section: 'actif',
+      institutionType: 'banque',
+      group,
+      groupTitle: BANK_ACTIF_GROUPS[group] ?? group,
+    }
+  })
+  entries.push({
+    fullKey: 'ACTIF_TOTAL',
+    rawCode: 'TOTAL',
+    label: 'TOTAL ACTIF',
+    section: 'actif',
+    institutionType: 'banque',
+    group: 'TOTAL',
+    groupTitle: BANK_ACTIF_GROUPS.TOTAL,
+  })
+  return entries
+}
+
+function buildBankPassifs(): CatalogEntry[] {
+  const entries: CatalogEntry[] = BANK_PASSIFS.map(([rawCode, label]) => {
+    const group = bankPassifGroup(rawCode)
+    return {
+      fullKey: `PASSIF_${rawCode}`,
+      rawCode,
+      label,
+      section: 'passif',
+      institutionType: 'banque',
+      group,
+      groupTitle: BANK_PASSIF_GROUPS[group] ?? group,
+    }
+  })
+  entries.push({
+    fullKey: 'PASSIF_TOTAL',
+    rawCode: 'TOTAL',
+    label: 'TOTAL PASSIF',
+    section: 'passif',
+    institutionType: 'banque',
+    group: 'TOTAL',
+    groupTitle: BANK_PASSIF_GROUPS.TOTAL,
+  })
+  return entries
+}
+
+function buildBankCR(): CatalogEntry[] {
+  return BANK_CR.map(([rawCode, label]) => {
+    const group = bankCRGroup(rawCode)
+    return {
+      fullKey: `CR_${rawCode}`,
+      rawCode,
+      label,
+      section: 'compte_resultats',
+      institutionType: 'banque',
+      group,
+      groupTitle: BANK_CR_GROUPS[group] ?? group,
     }
   })
 }
@@ -304,7 +496,15 @@ export const MF_CATALOG: CatalogEntry[] = [
   ...buildCompteResultats(),
 ]
 
-const CATALOG_BY_KEY: Record<string, CatalogEntry> = MF_CATALOG.reduce(
+export const BANK_CATALOG: CatalogEntry[] = [
+  ...buildBankActifs(),
+  ...buildBankPassifs(),
+  ...buildBankCR(),
+]
+
+export const CATALOG: CatalogEntry[] = [...MF_CATALOG, ...BANK_CATALOG]
+
+const CATALOG_BY_KEY: Record<string, CatalogEntry> = CATALOG.reduce(
   (acc, entry) => {
     acc[entry.fullKey] = entry
     return acc
@@ -312,26 +512,67 @@ const CATALOG_BY_KEY: Record<string, CatalogEntry> = MF_CATALOG.reduce(
   {} as Record<string, CatalogEntry>
 )
 
+function normalizeSection(section: CatalogSection | string | undefined): string | undefined {
+  if (!section) return undefined
+  // accept 'actifs' / 'passifs' (plural form used by statementType)
+  if (section === 'actifs') return 'actif'
+  if (section === 'passifs') return 'passif'
+  return section
+}
+
+function normalizeInstitution(
+  institutionType: InstitutionType | string | undefined
+): InstitutionType | undefined {
+  if (!institutionType) return undefined
+  if (institutionType === 'banque' || institutionType === 'microfinance') return institutionType
+  return undefined
+}
+
 /** Look up a catalog entry by its full normalized key. */
 export function getCatalogEntry(fullKey: string | null | undefined): CatalogEntry | null {
   if (!fullKey) return null
   return CATALOG_BY_KEY[fullKey.trim()] ?? null
 }
 
-/** Get all catalog entries for a given statement section. */
-export function getCatalogForSection(section: CatalogSection | string | undefined): CatalogEntry[] {
-  if (!section) return MF_CATALOG
-  const normalized = section.replace(/s$/, '') // 'actifs' → 'actif', 'passifs' → 'passif'
-  return MF_CATALOG.filter((e) => e.section === normalized || e.section === section)
+/**
+ * Get catalog entries for a given section and (optionally) institution type.
+ *
+ * - When `institutionType` is provided, only entries for that institution are returned.
+ * - When `section` is undefined, all sections for the requested institution are returned.
+ * - When both are undefined, the full catalog is returned (rare — used as escape hatch
+ *   by the picker's "Voir tous les états" toggle).
+ */
+export function getCatalogForSection(
+  section?: CatalogSection | string,
+  institutionType?: InstitutionType | string
+): CatalogEntry[] {
+  const normSection = normalizeSection(section)
+  const normInst = normalizeInstitution(institutionType)
+  let pool = CATALOG
+  if (normInst) pool = pool.filter((e) => e.institutionType === normInst)
+  if (normSection) pool = pool.filter((e) => e.section === normSection)
+  return pool
 }
 
 /**
- * Detect whether a poste value is "undefined" (was not mapped by the
- * normalizer). The normalizer produces MFA_UNDEFINED_<hash>, MFP_UNDEFINED_<hash>,
- * MFI_UNDEFINED — all of which we treat as "no code assigned".
+ * Detect whether a poste value is "undefined" (was not mapped by the normalizer).
+ * Microfinance normalizers produce MFA_UNDEFINED_<hash>, MFP_UNDEFINED_<hash>, MFI_UNDEFINED.
+ * Bank normalizers produce ACTIF_UNDEFINED, PASSIF_UNDEFINED, CR_UNDEFINED.
+ * All contain the substring "UNDEFI" so a single check covers both.
  */
 export function isUndefinedPoste(poste: string | null | undefined): boolean {
   if (!poste) return true
   const p = poste.trim().toUpperCase()
-  return p === '' || p.includes('UNDEFINED') || p.includes('UNDEFI')
+  return p === '' || p.includes('UNDEFI')
+}
+
+/**
+ * Pretty name of the chart of accounts for the given institution. Used by the
+ * pedagogical banner ("Chaque ligne porte un code <plan> …").
+ */
+export function chartLabel(institutionType?: InstitutionType | string): string {
+  const normInst = normalizeInstitution(institutionType)
+  if (normInst === 'banque') return 'PCB BCEAO'
+  if (normInst === 'microfinance') return 'SYSCOA-IMF'
+  return 'comptable'
 }

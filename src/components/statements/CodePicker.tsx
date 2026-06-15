@@ -14,21 +14,25 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Search, AlertTriangle, Check, X } from 'lucide-react'
 import {
-  MF_CATALOG,
+  CATALOG,
   getCatalogEntry,
   getCatalogForSection,
   isUndefinedPoste,
+  chartLabel,
   type CatalogEntry,
   type CatalogSection,
+  type InstitutionType,
 } from '@/lib/normalization/microfinance/catalog'
 
 interface CodePickerProps {
-  /** Current full key stored in line.poste (e.g. "MFA_A10", "MFA_UNDEFINED_xxx") */
+  /** Current full key stored in line.poste (e.g. "MFA_A10", "ACTIF_04", "MFA_UNDEFINED_xxx") */
   value: string
   /** Original description of the row — used to display hint text */
   description?: string
   /** Section the row belongs to — drives the default filter */
   statementType?: 'actifs' | 'passifs' | 'hors_bilan' | 'compte_resultats' | string
+  /** Institution type — restricts the picker to bank vs microfinance codes */
+  institutionType?: InstitutionType | string
   onChange: (newKey: string) => void
   disabled?: boolean
 }
@@ -44,6 +48,7 @@ export default function CodePicker({
   value,
   description,
   statementType,
+  institutionType,
   onChange,
   disabled = false,
 }: CodePickerProps) {
@@ -54,11 +59,16 @@ export default function CodePicker({
 
   const currentEntry = getCatalogEntry(value)
   const isUnassigned = isUndefinedPoste(value)
+  const plan = chartLabel(institutionType)
 
   const filteredEntries = useMemo(() => {
+    // When "Voir tous les états" is toggled, stay within the same institution
+    // (a microfinance analyst should never see PCB BCEAO codes and vice-versa)
     const pool = showAllSections
-      ? MF_CATALOG
-      : getCatalogForSection(statementType as CatalogSection | undefined)
+      ? institutionType
+        ? CATALOG.filter((e) => e.institutionType === institutionType)
+        : CATALOG
+      : getCatalogForSection(statementType as CatalogSection | undefined, institutionType)
     const q = normalizeForSearch(search.trim())
     if (!q) return pool
     return pool.filter((e) => {
@@ -67,7 +77,7 @@ export default function CodePicker({
       )
       return haystack.includes(q)
     })
-  }, [search, showAllSections, statementType])
+  }, [search, showAllSections, statementType, institutionType])
 
   // Group entries by their `groupTitle` for display
   const grouped = useMemo(() => {
@@ -132,9 +142,10 @@ export default function CodePicker({
         className="max-w-2xl sm:max-w-2xl w-[95vw] max-h-[85vh] flex flex-col p-0 gap-0"
       >
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-stone-200">
-          <DialogTitle className="text-lg">Assigner un code SYSCOA-IMF</DialogTitle>
+          <DialogTitle className="text-lg">Assigner un code {plan}</DialogTitle>
           <DialogDescription className="text-xs text-stone-500">
-            Recherchez par code (ex. <code>A10</code>) ou par libellé (ex. <code>caisse</code>).
+            Recherchez par code (ex. <code>{institutionType === 'banque' ? '04' : 'A10'}</code>)
+            {' '}ou par libellé (ex. <code>caisse</code>).
             {description && (
               <span className="block mt-1">
                 Ligne à classer : <span className="font-medium text-stone-700">« {description} »</span>

@@ -297,6 +297,7 @@ function CompteResultatsPageContent() {
                 onSave={handleSave}
                 readOnly={saving}
                 statementType="compte_resultats"
+                institutionType={statement.type_institution}
               />
             </CardContent>
           </Card>
