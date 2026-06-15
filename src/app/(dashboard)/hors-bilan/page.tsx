@@ -293,6 +293,8 @@ function HorsBilanPageContent() {
                 lineItems={statement.line_items}
                 onSave={handleSave}
                 readOnly={saving}
+                statementType="hors_bilan"
+                institutionType={statement.type_institution}
               />
             </CardContent>
           </Card>

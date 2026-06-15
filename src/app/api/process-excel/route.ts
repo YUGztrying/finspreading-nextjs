@@ -204,7 +204,7 @@ function convertToLineItems(cleanedData: any[], institutionType: string = 'banqu
 // Extract periods from headers (look for years or dates)
 function extractPeriods(headers: string[]): string[] {
   const periods: string[] = []
-  
+
   for (const header of headers) {
     // Try to find year (4 digits)
     const yearMatch = header.match(/\b(20\d{2})\b/)
@@ -215,6 +215,86 @@ function extractPeriods(headers: string[]): string[] {
 
   // If no periods found, return empty array
   return periods.length > 0 ? periods : []
+}
+
+// BCEAO "Etat 167" microfinance reports embed the reporting period and SFD
+// identity in an IDENTIFIANT sheet (rows: NOM SFD, ANNÉE, TRIMESTRE, MOIS, …).
+// When present, this is the authoritative source — far better than guessing the
+// date from the filename or defaulting to "today".
+export interface IdentifiantMetadata {
+  companyName?: string
+  period?: string // YYYY-MM-DD (last day of the reporting month/quarter)
+  agrementNumber?: string
+}
+
+function lastDayOfMonth(year: number, month: number): string {
+  // month is 1-12. Date(y, m, 0) gives the last day of month m.
+  const d = new Date(Date.UTC(year, month, 0))
+  const yyyy = d.getUTCFullYear()
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+export function parseIdentifiantSheet(rows: unknown[][]): IdentifiantMetadata {
+  const out: IdentifiantMetadata = {}
+  if (!rows || rows.length === 0) return out
+
+  // Each row looks like ["LIBELLÉ", "VALUE", "END_COL"]; we match on a normalized
+  // label so accents/spacing variations don't break us.
+  const norm = (s: unknown) =>
+    String(s ?? '')
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+      .toUpperCase()
+
+  let year: number | undefined
+  let month: number | undefined
+  let trimester: number | undefined
+
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 2) continue
+    const label = norm(row[0])
+    const rawValue = row[1]
+    if (!label || rawValue === undefined || rawValue === null || rawValue === '') continue
+
+    if (label.includes('NOM') && label.includes('SFD')) {
+      const name = String(rawValue).trim()
+      if (name) out.companyName = name
+    } else if (label.includes('NUMERO') && label.includes('AGREMENT')) {
+      out.agrementNumber = String(rawValue).trim() || undefined
+    } else if (label === 'ANNEE' || label.startsWith('ANNEE')) {
+      const n = Number(rawValue)
+      if (Number.isFinite(n) && n >= 2000 && n <= 2100) year = n
+    } else if (label === 'MOIS' || label.startsWith('MOIS')) {
+      const n = Number(rawValue)
+      if (Number.isFinite(n) && n >= 1 && n <= 12) month = n
+    } else if (label.startsWith('TRIMESTRE')) {
+      const n = Number(rawValue)
+      if (Number.isFinite(n) && n >= 1 && n <= 4) trimester = n
+    }
+  }
+
+  if (year && month) {
+    out.period = lastDayOfMonth(year, month)
+  } else if (year && trimester) {
+    // Quarter-only fallback: last day of the trimester's last month
+    out.period = lastDayOfMonth(year, trimester * 3)
+  }
+
+  return out
+}
+
+function readIdentifiantFromWorkbook(workbook: XLSX.WorkBook): IdentifiantMetadata {
+  const sheetName = workbook.SheetNames.find((n) =>
+    n.toLowerCase().includes('identifiant')
+  )
+  if (!sheetName) return {}
+  const ws = workbook.Sheets[sheetName]
+  if (!ws) return {}
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) as unknown[][]
+  return parseIdentifiantSheet(rows)
 }
 
 export async function POST(request: NextRequest) {
@@ -241,11 +321,33 @@ export async function POST(request: NextRequest) {
     }
 
     const arrayBuffer = await response.arrayBuffer()
-    const workbook = XLSX.read(arrayBuffer, { type: 'buffer' })
+    let workbook: XLSX.WorkBook
+    try {
+      workbook = XLSX.read(arrayBuffer, { type: 'buffer' })
+    } catch (readErr: any) {
+      const msg = String(readErr?.message ?? readErr)
+      if (msg.toLowerCase().includes('password')) {
+        return NextResponse.json(
+          {
+            error: 'Fichier Excel protégé par mot de passe',
+            details: 'Retire la protection dans Excel (Fichier → Informations → Protéger le classeur) puis renvoie le fichier.',
+          },
+          { status: 400 }
+        )
+      }
+      throw readErr
+    }
 
     if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
       throw new Error('No sheets found in the Excel file')
     }
+
+    // BCEAO "Etat 167" reports carry the SFD name and reporting period in an
+    // IDENTIFIANT sheet. When present we use those instead of the caller-supplied
+    // company_name and the filename-based date heuristic — both are noisy.
+    const identifiantMeta = readIdentifiantFromWorkbook(workbook)
+    const effectiveCompanyName =
+      identifiantMeta.companyName || company_name || 'Unknown Company'
 
     const cleanedTables: any[] = []
     const savedStatements: string[] = []
@@ -329,6 +431,13 @@ export async function POST(request: NextRequest) {
             const originalHeaders = Object.keys(rawData[0] || {})
             let periods = extractPeriods(originalHeaders)
 
+            // 🔹 MICROFINANCE PRIORITY: IDENTIFIANT sheet (BCEAO Etat 167)
+            // wins over both header scanning and the filename heuristic — it's
+            // the only authoritative source of the reporting period.
+            if (periods.length === 0 && identifiantMeta.period) {
+              periods = [identifiantMeta.period]
+            }
+
             // 🔹 MICROFINANCE FIX: Single period financial statements
             // If no periods detected and institution is microfinance, create a default period
             if (periods.length === 0 && institution_type === 'microfinance') {
@@ -391,7 +500,7 @@ export async function POST(request: NextRequest) {
             const normalizeResult = normalizeFinancialLines(lineItems, {
               institutionType: institution_type,
               statementType: candidateType as any,
-              companyName: company_name || 'Unknown Company',
+              companyName: effectiveCompanyName,
               sourceFile: file_url
             })
             
@@ -404,7 +513,7 @@ export async function POST(request: NextRequest) {
             // Save to database — user.id comes from the verified session
             const saveResult = await saveFinancialStatement(
               {
-                company_name: company_name || 'Unknown Company',
+                company_name: effectiveCompanyName,
                 type_institution: institution_type,
                 statement_type: candidateType as any,
                 periods,
@@ -444,6 +553,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      company_name: effectiveCompanyName,
+      identifiant: identifiantMeta,
       cleaned_tables: cleanedTables,
       saved_statements: savedStatements,
       summary: {

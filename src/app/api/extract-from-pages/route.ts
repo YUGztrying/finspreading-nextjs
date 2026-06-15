@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { PDFDocument } from 'pdf-lib'
 import { requireUser } from '@/lib/auth/require-user'
+import { resolveRelativePeriods, normalizeClosingDate } from '@/lib/normalization/period-resolver'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -76,14 +77,28 @@ Pour les en-têtes "ENGAGEMENTS DONNÉS" / "ENGAGEMENTS REÇUS" eux-mêmes, ajou
 
   return `Tu es un expert comptable spécialisé dans l'analyse d'états financiers ${context} (format BCEAO/OHADA).
 
-Ce PDF contient UNIQUEMENT le tableau "${label}" d'une institution financière. Extrais TOUTES les lignes du tableau.${typeSpecificHint}
+Ce PDF contient le tableau "${label}" d'une institution financière. La page peut contenir
+plusieurs tableaux côte à côte (par exemple ACTIF + PASSIF sur la même page de bilan microfinance, ou
+COMPTE DE RÉSULTAT + HORS-BILAN). Dans ce cas, extrais UNIQUEMENT la section "${label}" et ignore
+strictement les autres sections présentes. Extrais TOUTES les lignes de cette section.${typeSpecificHint}
 
 INSTRUCTIONS:
 1. Identifie le nom de l'institution (cherche en en-tête de page ou dans une cellule)
-2. Identifie les périodes/exercices présentés (dans l'en-tête des colonnes numériques)
+2. **PÉRIODES — règle critique** :
+   a. Cherche la "Date d'arrêté" (ou "Date d'arreté", "Date de clôture", "Closing date") imprimée
+      sur la page et renvoie-la dans le champ "closing_date" au format YYYY-MM-DD. Si elle est en
+      DD/MM/YYYY ou en case à damier "31|12|2023", convertis. Si tu ne la trouves pas avec
+      certitude, renvoie "".
+   b. Pour le champ "periods" : si les colonnes affichent des dates explicites (ex. "31/12/2022",
+      "2022-12-31", "Décembre 2022"), renvoie-les converties en YYYY-MM-DD.
+      Si elles affichent des libellés RELATIFS ("exercice N", "exercice N-1", "N", "N-1",
+      "Année N", "FY N-1", etc.), renvoie EXACTEMENT ces libellés tels quels — le serveur les
+      résoudra à partir de "closing_date".
+   c. NE DEVINE JAMAIS l'année si elle n'est pas explicitement écrite. Pas de "N → 2023" mental.
+      Soit absolu (date imprimée), soit relatif (libellé brut). Pas d'interpolation.
 3. Pour CHAQUE ligne du tableau, extrais:
-   - Le code POSTE (souvent un numéro 1-20 ou un code alphanumérique comme RBA_0010, MFA_A11). Si pas de code visible, utilise "".
-   - La description exacte (libellé en français)
+   - Le code POSTE: soit le code alphanumérique exact visible dans le PDF (ex. RBA_0010, A01, A10, B2D, F1A, L20), soit le numéro de poste si c'est tout ce que le tableau affiche (1, 2, 3…). Si AUCUN code n'est lisible, utilise "" — n'invente JAMAIS un code et ne réutilise PAS un code d'une autre ligne.
+   - La description exacte (libellé en français), telle qu'elle est imprimée. Si la ligne est mal scannée ou floue, conserve le texte tel que tu le lis sans le "corriger" pour qu'il ressemble à un poste connu — la normalisation downstream préfère un libellé fidèle (même imparfait) à un code inventé.
    - Les montants pour chaque période (en nombres, pas en string; utilise 0 si vide ou "-")
    - is_subtotal: true si la ligne est un sous-total ou un en-tête de section
    - is_total: true pour la ligne TOTAL finale
@@ -92,7 +107,8 @@ INSTRUCTIONS:
 FORMAT DE SORTIE (JSON strict, AUCUN texte additionnel, AUCUN markdown):
 {
   "company_name": "Nom de l'institution",
-  "periods": ["2023-12-31", "2024-12-31"],
+  "closing_date": "2023-12-31",
+  "periods": ["exercice N-1", "exercice N"],
   "line_items": [
     {
       "poste": "1",
@@ -107,18 +123,19 @@ FORMAT DE SORTIE (JSON strict, AUCUN texte additionnel, AUCUN markdown):
 
 RÈGLES CRITIQUES:
 - Les montants DOIVENT être des nombres purs (pas de virgules, pas d'espaces, pas de "FCFA")
-- Les périodes au format YYYY-MM-DD (utilise 12-31 si seule l'année est visible)
 - Garde l'ordre des lignes du PDF
 - Inclus TOUS les totaux et sous-totaux avec les flags appropriés
 - Si un montant est "-" ou vide, utilise 0
 - N'invente AUCUNE ligne; extrais uniquement ce qui est visible dans le PDF
-- Les champs "company_name", "periods", et "line_items" sont OBLIGATOIRES dans la réponse
+- Les champs "company_name", "closing_date", "periods", et "line_items" sont OBLIGATOIRES dans la réponse
 
 Réponds UNIQUEMENT avec le JSON.`
 }
 
 interface ClaudeExtractionResult {
   company_name: string
+  /** Raw "Date d'arrêté" reported by Claude, e.g. "2023-12-31" or "" if missing. */
+  closing_date: string
   periods: string[]
   line_items: LineItem[]
 }
@@ -194,7 +211,8 @@ async function extractOneStatement(
 
   return {
     company_name: typeof parsed.company_name === 'string' && parsed.company_name.trim() ? parsed.company_name : '',
-    periods: Array.isArray(parsed.periods) ? parsed.periods : [],
+    closing_date: typeof parsed.closing_date === 'string' ? parsed.closing_date.trim() : '',
+    periods: Array.isArray(parsed.periods) ? parsed.periods.map((p: unknown) => String(p)) : [],
     line_items: lineItems,
   }
 }
@@ -255,9 +273,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Per-upload tag so all log lines for a single extraction can be grepped
+    // together in Vercel even when several runs are interleaved.
+    const traceId = Math.random().toString(36).slice(2, 10)
+    console.info(
+      `[extract-from-pages][${traceId}] start institution=${institution_type} ` +
+        `pages_total=${totalPages} selections=` +
+        JSON.stringify(validSelections)
+    )
+
     // Extract in parallel per statement type — partial success tolerated
+    type ExtractedWithMeta = ExtractedStatement & {
+      company_name: string
+      periodsRaw: string[]
+      closingDate: string
+      hasUnresolved: boolean
+    }
     const extractionPromises = Object.entries(validSelections).map(
-      async ([type, pages]): Promise<ExtractedStatement & { company_name: string }> => {
+      async ([type, pages]): Promise<ExtractedWithMeta> => {
         // Build sub-PDF containing only the selected pages
         const subDoc = await PDFDocument.create()
         const pageIndices = pages.map((p) => p - 1) // 1-indexed → 0-indexed
@@ -266,11 +299,39 @@ export async function POST(request: NextRequest) {
         const subBytes = await subDoc.save()
         const subBase64 = Buffer.from(subBytes).toString('base64')
 
+        const subSizeKB = Math.round(subBytes.byteLength / 1024)
+        console.info(
+          `[extract-from-pages][${traceId}] ${type} → sub-PDF ` +
+            `pages=[${pages.join(',')}] size=${subSizeKB}KB`
+        )
+
+        const t0 = Date.now()
         const result = await extractOneStatement(subBase64, type as StatementType, institution_type)
+        const elapsedMs = Date.now() - t0
+
+        // Resolve any relative period labels ("exercice N-1", "N", …) using
+        // the closing date Claude read off the form. This eliminates the class
+        // of bugs where the same column reads as a literal label on one
+        // extraction and as a real date on another, then fails to merge.
+        const resolution = resolveRelativePeriods(result.periods, result.closing_date)
+
+        console.info(
+          `[extract-from-pages][${traceId}] ${type} ← Claude ` +
+            `lines=${result.line_items.length} ` +
+            `closing_date="${result.closing_date}" ` +
+            `periods_raw=${JSON.stringify(result.periods)} ` +
+            `periods_resolved=${JSON.stringify(resolution.resolved)} ` +
+            `unresolved=${resolution.hasUnresolved} ` +
+            `company="${result.company_name}" ` +
+            `elapsed=${elapsedMs}ms`
+        )
 
         return {
           statement_type: type as StatementType,
-          periods: result.periods,
+          periods: resolution.resolved,
+          periodsRaw: result.periods,
+          closingDate: result.closing_date,
+          hasUnresolved: resolution.hasUnresolved,
           line_items: result.line_items,
           company_name: result.company_name,
         }
@@ -278,7 +339,7 @@ export async function POST(request: NextRequest) {
     )
 
     const settled = await Promise.allSettled(extractionPromises)
-    const results: Array<ExtractedStatement & { company_name: string }> = []
+    const results: ExtractedWithMeta[] = []
     const failures: Array<{ statement_type: string; error: string }> = []
 
     for (let i = 0; i < settled.length; i++) {
@@ -287,12 +348,56 @@ export async function POST(request: NextRequest) {
       if (outcome.status === 'fulfilled') {
         results.push(outcome.value)
       } else {
+        const errMsg = outcome.reason?.message ?? String(outcome.reason)
+        console.error(`[extract-from-pages][${traceId}] ${type} FAILED: ${errMsg}`)
         failures.push({
           statement_type: type,
-          error: outcome.reason?.message ?? String(outcome.reason),
+          error: errMsg,
         })
       }
     }
+
+    // ── Cross-statement closing-date consensus ────────────────────────────────
+    // All statement types in ONE uploaded PDF share the same "Date d'arrêté".
+    // Claude reads it reliably on some pages and returns "" on others (the
+    // BCEAO checkered-box format is hard to OCR). When at least one statement
+    // got a usable closing date, propagate it to the ones that came back
+    // unresolved and re-resolve their relative period labels. This fixes the
+    // case where Actifs/Passifs/CR keep literal "exercice N-1" while Hors-Bilan
+    // resolved correctly — they would otherwise never merge across PDFs.
+    const closingDateVotes: Record<string, number> = {}
+    for (const r of results) {
+      const cd = normalizeClosingDate(r.closingDate)
+      if (cd) closingDateVotes[cd] = (closingDateVotes[cd] || 0) + 1
+    }
+    const consensusClosingDate =
+      Object.entries(closingDateVotes).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+
+    if (consensusClosingDate) {
+      for (const r of results) {
+        if (r.hasUnresolved) {
+          const reResolved = resolveRelativePeriods(r.periodsRaw, consensusClosingDate)
+          if (!reResolved.hasUnresolved) {
+            console.info(
+              `[extract-from-pages][${traceId}] ${r.statement_type} ↻ re-resolved ` +
+                `via consensus closing_date=${consensusClosingDate} ` +
+                `periods=${JSON.stringify(reResolved.resolved)}`
+            )
+            r.periods = reResolved.resolved
+            r.hasUnresolved = false
+          }
+        }
+      }
+    } else {
+      console.warn(
+        `[extract-from-pages][${traceId}] no usable closing_date on any statement — ` +
+          `relative periods left unresolved`
+      )
+    }
+
+    console.info(
+      `[extract-from-pages][${traceId}] done ok=${results.length} failed=${failures.length}`
+    )
 
     // If everything failed, surface as 500 with full detail
     if (results.length === 0) {
