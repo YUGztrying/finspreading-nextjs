@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { PDFDocument } from 'pdf-lib'
 import { requireUser } from '@/lib/auth/require-user'
-import { resolveRelativePeriods } from '@/lib/normalization/period-resolver'
+import { resolveRelativePeriods, normalizeClosingDate } from '@/lib/normalization/period-resolver'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -283,8 +283,14 @@ export async function POST(request: NextRequest) {
     )
 
     // Extract in parallel per statement type — partial success tolerated
+    type ExtractedWithMeta = ExtractedStatement & {
+      company_name: string
+      periodsRaw: string[]
+      closingDate: string
+      hasUnresolved: boolean
+    }
     const extractionPromises = Object.entries(validSelections).map(
-      async ([type, pages]): Promise<ExtractedStatement & { company_name: string }> => {
+      async ([type, pages]): Promise<ExtractedWithMeta> => {
         // Build sub-PDF containing only the selected pages
         const subDoc = await PDFDocument.create()
         const pageIndices = pages.map((p) => p - 1) // 1-indexed → 0-indexed
@@ -323,6 +329,9 @@ export async function POST(request: NextRequest) {
         return {
           statement_type: type as StatementType,
           periods: resolution.resolved,
+          periodsRaw: result.periods,
+          closingDate: result.closing_date,
+          hasUnresolved: resolution.hasUnresolved,
           line_items: result.line_items,
           company_name: result.company_name,
         }
@@ -330,7 +339,7 @@ export async function POST(request: NextRequest) {
     )
 
     const settled = await Promise.allSettled(extractionPromises)
-    const results: Array<ExtractedStatement & { company_name: string }> = []
+    const results: ExtractedWithMeta[] = []
     const failures: Array<{ statement_type: string; error: string }> = []
 
     for (let i = 0; i < settled.length; i++) {
@@ -346,6 +355,44 @@ export async function POST(request: NextRequest) {
           error: errMsg,
         })
       }
+    }
+
+    // ── Cross-statement closing-date consensus ────────────────────────────────
+    // All statement types in ONE uploaded PDF share the same "Date d'arrêté".
+    // Claude reads it reliably on some pages and returns "" on others (the
+    // BCEAO checkered-box format is hard to OCR). When at least one statement
+    // got a usable closing date, propagate it to the ones that came back
+    // unresolved and re-resolve their relative period labels. This fixes the
+    // case where Actifs/Passifs/CR keep literal "exercice N-1" while Hors-Bilan
+    // resolved correctly — they would otherwise never merge across PDFs.
+    const closingDateVotes: Record<string, number> = {}
+    for (const r of results) {
+      const cd = normalizeClosingDate(r.closingDate)
+      if (cd) closingDateVotes[cd] = (closingDateVotes[cd] || 0) + 1
+    }
+    const consensusClosingDate =
+      Object.entries(closingDateVotes).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+
+    if (consensusClosingDate) {
+      for (const r of results) {
+        if (r.hasUnresolved) {
+          const reResolved = resolveRelativePeriods(r.periodsRaw, consensusClosingDate)
+          if (!reResolved.hasUnresolved) {
+            console.info(
+              `[extract-from-pages][${traceId}] ${r.statement_type} ↻ re-resolved ` +
+                `via consensus closing_date=${consensusClosingDate} ` +
+                `periods=${JSON.stringify(reResolved.resolved)}`
+            )
+            r.periods = reResolved.resolved
+            r.hasUnresolved = false
+          }
+        }
+      }
+    } else {
+      console.warn(
+        `[extract-from-pages][${traceId}] no usable closing_date on any statement — ` +
+          `relative periods left unresolved`
+      )
     }
 
     console.info(

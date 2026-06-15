@@ -83,6 +83,16 @@ function formatDate(dt: Date): string {
 }
 
 /**
+ * Parse + canonicalize a closing date to YYYY-MM-DD, or null if unparseable.
+ * Convenience wrapper used by callers that just need the normalized string
+ * (e.g. cross-statement closing-date consensus voting).
+ */
+export function normalizeClosingDate(input: string | null | undefined): string | null {
+  const dt = parseClosingDate(input)
+  return dt ? formatDate(dt) : null
+}
+
+/**
  * Detect relative-year labels like "N", "N-1", "exercice N-1", "année N",
  * "Période N+1", "FY N-2". Returns the year offset (0 for "N", -1 for "N-1",
  * +1 for "N+1") or null if not a relative label.

@@ -4,7 +4,22 @@ import {
   parseRelativeOffset,
   isAbsoluteDate,
   resolveRelativePeriods,
+  normalizeClosingDate,
 } from '@/lib/normalization/period-resolver'
+
+describe('normalizeClosingDate', () => {
+  it('canonicalizes assorted formats to YYYY-MM-DD', () => {
+    expect(normalizeClosingDate('31/12/2024')).toBe('2024-12-31')
+    expect(normalizeClosingDate('2024-12-31')).toBe('2024-12-31')
+    expect(normalizeClosingDate('31|12|2024')).toBe('2024-12-31')
+  })
+
+  it('returns null for unparseable / empty', () => {
+    expect(normalizeClosingDate('')).toBeNull()
+    expect(normalizeClosingDate(null)).toBeNull()
+    expect(normalizeClosingDate('exercice N')).toBeNull()
+  })
+})
 
 describe('parseClosingDate', () => {
   it('accepts ISO YYYY-MM-DD', () => {
