@@ -569,7 +569,10 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
   ]},
   { title: 'Net Interest Income', isCalculated: true, components: [
     { name: 'Total Interest Income', sign: '+' },
-    { name: 'Total Interest Expense', sign: '-' }
+    // Expense codes (CR_02) are stored already-signed (negative, as printed
+    // on the BCEAO RESU_PUB statement). Sum signed values — do NOT subtract,
+    // which would double-negate. Same principle for every expense below.
+    { name: 'Total Interest Expense', sign: '+' }
   ]},
 
   { title: 'REVENUS HORS INTERETS (NON-INTEREST INCOME)', type: 'subheader' },
@@ -597,7 +600,8 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
   { title: 'Less: Fees and Commissions Expense (-)', keywords: ['CR_05'] },
   { title: 'Net Fees & Commissions', isCalculated: true, components: [
     { name: 'Fees and Commissions Income', sign: '+' },
-    { name: 'Less: Fees and Commissions Expense (-)', sign: '-' }
+    // CR_05 stored negative → sum, don't subtract.
+    { name: 'Less: Fees and Commissions Expense (-)', sign: '+' }
   ]},
 
   { title: 'Profit (Loss) from Op. Investments Accounted under Equity Method', keywords: [] },
@@ -633,7 +637,8 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
   { title: 'Operating Profit before Provision Expenses', isCalculated: true, components: [
     { name: 'Net Interest Income', sign: '+' },
     { name: 'Non-Interest Income', sign: '+' },
-    { name: 'Non-Interest Expenses', sign: '-' }
+    // Non-Interest Expenses is a signed subtotal (negative) → sum.
+    { name: 'Non-Interest Expenses', sign: '+' }
   ]},
 
   { title: 'PROVISIONS ET RESULTAT', type: 'subheader' },
@@ -648,7 +653,8 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
 
   { title: 'Operating Profit', isCalculated: true, components: [
     { name: 'Operating Profit before Provision Expenses', sign: '+' },
-    { name: 'Provision Expenses', sign: '-' }
+    // Provision Expenses (CR_15) stored negative → sum.
+    { name: 'Provision Expenses', sign: '+' }
   ]},
 
   { title: 'P/L from Non Op. Invest. Accounted under Equity Method', keywords: [] },
@@ -668,7 +674,8 @@ export const incomeStatementStructureBank: IRPLineItem[] = [
 
   { title: 'Net Income', type: 'finalTotal', isCalculated: true, components: [
     { name: 'Pre-tax Profit', sign: '+' },
-    { name: 'Tax expense', sign: '-' },
+    // Tax expense (CR_19) stored negative → sum.
+    { name: 'Tax expense', sign: '+' },
     { name: 'Profit(Loss) from Discontinued Operations', sign: '+' }
   ]},
 ];
