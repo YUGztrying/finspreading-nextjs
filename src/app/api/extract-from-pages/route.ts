@@ -258,6 +258,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Per-upload tag so all log lines for a single extraction can be grepped
+    // together in Vercel even when several runs are interleaved.
+    const traceId = Math.random().toString(36).slice(2, 10)
+    console.info(
+      `[extract-from-pages][${traceId}] start institution=${institution_type} ` +
+        `pages_total=${totalPages} selections=` +
+        JSON.stringify(validSelections)
+    )
+
     // Extract in parallel per statement type — partial success tolerated
     const extractionPromises = Object.entries(validSelections).map(
       async ([type, pages]): Promise<ExtractedStatement & { company_name: string }> => {
@@ -269,7 +278,23 @@ export async function POST(request: NextRequest) {
         const subBytes = await subDoc.save()
         const subBase64 = Buffer.from(subBytes).toString('base64')
 
+        const subSizeKB = Math.round(subBytes.byteLength / 1024)
+        console.info(
+          `[extract-from-pages][${traceId}] ${type} → sub-PDF ` +
+            `pages=[${pages.join(',')}] size=${subSizeKB}KB`
+        )
+
+        const t0 = Date.now()
         const result = await extractOneStatement(subBase64, type as StatementType, institution_type)
+        const elapsedMs = Date.now() - t0
+
+        console.info(
+          `[extract-from-pages][${traceId}] ${type} ← Claude ` +
+            `lines=${result.line_items.length} ` +
+            `periods=${JSON.stringify(result.periods)} ` +
+            `company="${result.company_name}" ` +
+            `elapsed=${elapsedMs}ms`
+        )
 
         return {
           statement_type: type as StatementType,
@@ -290,12 +315,18 @@ export async function POST(request: NextRequest) {
       if (outcome.status === 'fulfilled') {
         results.push(outcome.value)
       } else {
+        const errMsg = outcome.reason?.message ?? String(outcome.reason)
+        console.error(`[extract-from-pages][${traceId}] ${type} FAILED: ${errMsg}`)
         failures.push({
           statement_type: type,
-          error: outcome.reason?.message ?? String(outcome.reason),
+          error: errMsg,
         })
       }
     }
+
+    console.info(
+      `[extract-from-pages][${traceId}] done ok=${results.length} failed=${failures.length}`
+    )
 
     // If everything failed, surface as 500 with full detail
     if (results.length === 0) {

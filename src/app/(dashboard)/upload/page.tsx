@@ -33,6 +33,10 @@ export default function UploadPage() {
     message: string
   } | null>(null)
   const [verificationCompany, setVerificationCompany] = useState<string | null>(null)
+  // Per-type extraction recap (lines/periods/source pages) — shown inside the
+  // verification card so the analyst sees the shape of what was just ingested
+  // before any silent partial failure goes unnoticed.
+  const [verificationRecap, setVerificationRecap] = useState<ExtractFromPagesResult['summary'] | null>(null)
 
   // Page-picker dialog state (PDF flow)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -242,6 +246,16 @@ export default function UploadPage() {
     if (pickerFileIndex === null) return
     const index = pickerFileIndex
 
+    // Collect per-statement save outcomes so we can surface a recap to the
+    // analyst (and never silently swallow a failure again).
+    const saveOutcomes: Array<{
+      type: string
+      ok: boolean
+      lines: number
+      periods: number
+      error?: string
+    }> = []
+
     try {
       for (const statement of result.statements) {
         const statementData = {
@@ -261,11 +275,24 @@ export default function UploadPage() {
 
         if (!saveResponse.ok) {
           const err = await saveResponse.json().catch(() => ({}))
-          throw new Error(err.error || `Échec de la sauvegarde pour ${statement.statement_type}`)
+          saveOutcomes.push({
+            type: statement.statement_type,
+            ok: false,
+            lines: statement.line_items?.length ?? 0,
+            periods: statement.periods?.length ?? 0,
+            error: err.error || 'Sauvegarde échouée',
+          })
+        } else {
+          saveOutcomes.push({
+            type: statement.statement_type,
+            ok: true,
+            lines: statement.line_items?.length ?? 0,
+            periods: statement.periods?.length ?? 0,
+          })
         }
       }
 
-      // Success: close dialog, complete progress, show verification card
+      // Close dialog regardless of outcome
       setPickerOpen(false)
       setPickerFileUrl(null)
       setPickerFileName('')
@@ -276,10 +303,55 @@ export default function UploadPage() {
         newProgress[index] = 100
         return newProgress
       })
-      setVerificationCompany(result.company_name)
-      setNotification(null)
 
-      setTimeout(() => removeFile(index), 3000)
+      // Build extraction recap from backend warnings + save outcomes
+      const extractionWarnings = result.warnings ?? []
+      const saveFailures = saveOutcomes.filter((o) => !o.ok)
+      const hasFailures = extractionWarnings.length > 0 || saveFailures.length > 0
+
+      // Period-asymmetry heuristic: if Actifs and Passifs from this PDF came
+      // out with different period counts, flag it so the user notices the
+      // missing year before it gets buried by a future merge.
+      const periodsByType: Record<string, number> = {}
+      for (const o of saveOutcomes) if (o.ok) periodsByType[o.type] = o.periods
+      const periodAsymmetry =
+        periodsByType.actifs !== undefined &&
+        periodsByType.passifs !== undefined &&
+        periodsByType.actifs !== periodsByType.passifs
+
+      if (hasFailures) {
+        const parts: string[] = []
+        for (const w of extractionWarnings) {
+          parts.push(`Extraction ${w.statement_type} a échoué : ${w.error}`)
+        }
+        for (const f of saveFailures) {
+          parts.push(`Sauvegarde ${f.type} a échoué : ${f.error}`)
+        }
+        setNotification({
+          type: 'error',
+          message:
+            `${result.company_name} — ${parts.length} échec${parts.length > 1 ? 's' : ''} ` +
+            `(${parts.join(' · ')}). Vérifiez le tagging des pages et réessayez ce PDF.`,
+        })
+      } else if (periodAsymmetry) {
+        setNotification({
+          type: 'info',
+          message:
+            `${result.company_name} — attention : ${periodsByType.actifs} périodes côté Actifs ` +
+            `vs ${periodsByType.passifs} côté Passifs. Une colonne d'année peut manquer sur l'un ` +
+            `des deux. Ouvrez chaque tableau pour vérifier.`,
+        })
+      } else {
+        setNotification(null)
+      }
+
+      setVerificationCompany(result.company_name)
+      setVerificationRecap(result.summary ?? null)
+
+      // Only auto-remove the file from the queue if everything went well
+      if (!hasFailures) {
+        setTimeout(() => removeFile(index), 3000)
+      }
     } catch (err: any) {
       setNotification({
         type: 'error',
@@ -385,6 +457,31 @@ export default function UploadPage() {
                   <p className="text-sm text-emerald-700 mb-3">
                     Vérifiez et corrigez les données extraites dans chaque tableau avant de lancer les rapports.
                   </p>
+                  {verificationRecap && verificationRecap.statements.length > 0 && (
+                    <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                      {verificationRecap.statements.map((s) => {
+                        const label =
+                          s.type === 'actifs' ? 'Actifs' :
+                          s.type === 'passifs' ? 'Passifs' :
+                          s.type === 'hors_bilan' ? 'Hors-Bilan' :
+                          'Compte de Résultats'
+                        return (
+                          <div
+                            key={s.type}
+                            className="rounded-md border border-emerald-200 bg-white px-3 py-2 text-xs"
+                          >
+                            <div className="font-medium text-emerald-900 mb-0.5">{label}</div>
+                            <div className="text-stone-700 tabular-nums">
+                              {s.lines} ligne{s.lines !== 1 ? 's' : ''} · {s.periods} période{s.periods !== 1 ? 's' : ''}
+                            </div>
+                            <div className="text-stone-500">
+                              page{s.source_pages.length !== 1 ? 's' : ''} {s.source_pages.join(', ')}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {[
                       { label: 'États Actifs', href: `/actifs?company=${encodeURIComponent(verificationCompany)}` },
@@ -407,7 +504,7 @@ export default function UploadPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setVerificationCompany(null)}
+                  onClick={() => { setVerificationCompany(null); setVerificationRecap(null) }}
                   className="shrink-0 -mt-1 -mr-1 h-7 w-7 text-emerald-600 hover:bg-emerald-100"
                 >
                   <X className="w-3.5 h-3.5" />

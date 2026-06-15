@@ -45,9 +45,16 @@ export async function saveFinancialStatement(
 
     const existingStatement = existingStatements?.[0]
 
+    const logTag = `[save][${data.company_name}|${data.statement_type}]`
+
     if (existingStatement) {
       // Statement exists - MERGE the data
-      
+      console.info(
+        `${logTag} merge existing=${JSON.stringify(existingStatement.periods)} ` +
+          `(${(existingStatement.line_items as LineItem[]).length} lines) ` +
+          `+ incoming=${JSON.stringify(data.periods)} (${cleanedRows.length} lines)`
+      )
+
       const mergedData = mergeStatements(
         {
           periods: existingStatement.periods,
@@ -59,6 +66,11 @@ export async function saveFinancialStatement(
         },
         data.type_institution,
         data.statement_type
+      )
+
+      console.info(
+        `${logTag} merged result=${JSON.stringify(mergedData.periods)} ` +
+          `(${mergedData.line_items.length} lines)`
       )
 
       // Update existing statement
@@ -75,6 +87,7 @@ export async function saveFinancialStatement(
         .single()
 
       if (updateError) {
+        console.error(`${logTag} update failed: ${updateError.message}`)
         throw new Error(`Update failed: ${updateError.message}`)
       }
 
@@ -82,6 +95,11 @@ export async function saveFinancialStatement(
 
     } else {
       // No existing statement - CREATE new one
+      console.info(
+        `${logTag} create new periods=${JSON.stringify(data.periods)} ` +
+          `(${cleanedRows.length} lines after validation, ` +
+          `${data.line_items.length} before)`
+      )
 
       const newStatement: FinancialStatementInsert = {
         user_id: userId,
@@ -100,6 +118,7 @@ export async function saveFinancialStatement(
         .single()
 
       if (insertError) {
+        console.error(`${logTag} insert failed: ${insertError.message}`)
         throw new Error(`Insert failed: ${insertError.message}`)
       }
 

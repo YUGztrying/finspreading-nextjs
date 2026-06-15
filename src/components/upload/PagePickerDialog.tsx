@@ -90,6 +90,20 @@ export interface ExtractFromPagesResult {
       indent_level?: number
     }>
   }>
+  /** Per-type failures returned by /api/extract-from-pages (e.g. Claude JSON parse error, timeout) */
+  warnings?: Array<{ statement_type: string; error: string }>
+  /** Per-type extraction recap returned by /api/extract-from-pages */
+  summary?: {
+    company: string
+    total_statements: number
+    failed_statements: number
+    statements: Array<{
+      type: StatementType
+      lines: number
+      periods: number
+      source_pages: number[]
+    }>
+  }
 }
 
 // LazyPage — renders a placeholder of the right size until it's near the
@@ -282,7 +296,14 @@ export default function PagePickerDialog({
         throw new Error('Réponse invalide du serveur')
       }
 
-      onExtracted(result.data)
+      // Forward warnings + summary alongside the statements so the parent page
+      // can surface partial failures and a per-type extraction recap. The
+      // backend sends both at the top level — not inside `data` — so we merge.
+      onExtracted({
+        ...result.data,
+        warnings: result.warnings,
+        summary: result.summary,
+      })
     } catch (err: any) {
       setError(err?.message || 'Une erreur est survenue pendant l\'extraction')
     } finally {
