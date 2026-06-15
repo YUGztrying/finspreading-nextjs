@@ -1,586 +1,295 @@
-# FinSpreading - Financial Statement Analysis Platform
+# FinSpreading
 
-Modern financial analysis application built for IFC (World Bank) analysts to automate the analysis and standardization of financial statements from banks and microfinances, ensuring compliance with IRP (Investment Risk Platform) standards.
+A web app that turns West-African bank and microfinance financial statements
+(PDFs from BCEAO/SYSCOA-IMF auditors, BCEAO Excel reporting forms) into
+standardized data that feeds IRP reports and CAMELS analyses for IFC analysts.
 
-## Overview
+The goal is to remove the manual re-keying that traditionally costs an analyst
+hours per institution. An analyst uploads the PDF, tags the relevant pages,
+reviews the extracted figures, and exports an IRP-compliant Excel — instead of
+typing 200 lines from a scanned audit report.
 
-FinSpreading replaces the legacy Base44 implementation with a modern, performant stack built on Next.js 15 and Supabase. The application provides:
+## Tech stack
 
-- **AI-powered document extraction** from PDFs and Excel files
-- **Intelligent normalization** handling different institution types (banks vs microfinance)
-- **Interactive editable tables** with drag-and-drop functionality
-- **IRP report generation** with manual override capabilities
-- **Comprehensive audit trails** for all data changes
+- **Frontend** Next.js 15 (App Router), React 19, TypeScript strict, Tailwind, shadcn/ui
+- **Backend** Supabase (Postgres + Auth + Storage + RLS), Next.js API routes
+- **Extraction** Anthropic Claude Sonnet 4 (PDF document content blocks)
+- **Excel** ExcelJS + xlsx, pdf-lib for splitting source PDFs page-by-page
+- **Tests** Jest + ts-jest, 215+ unit tests
+- **Hosting** Vercel (Hobby tier is enough for piloting)
 
-## Tech Stack
+## Quick start
 
-- **Frontend**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS
-- **Backend**: Supabase (PostgreSQL, Auth, Storage, RLS)
-- **AI Processing**: Anthropic Claude API (document extraction)
-- **File Processing**: ExcelJS, PDF parsing
-- **UI Components**: shadcn/ui, Radix UI
-- **Deployment**: Vercel
-
-## Features
-
-### 1. Document Upload & Processing
-- Upload PDF or Excel financial statements
-- AI-powered extraction using Claude API
-- Automatic classification (Actifs, Passifs, Compte de Résultats, Hors-Bilan)
-- Institution type detection (Bank vs Microfinance)
-
-### 2. Financial Statement Management
-- **Actifs (Assets)** - View and edit asset positions
-- **Passifs (Liabilities)** - Manage liability accounts
-- **Compte de Résultats (Income Statement)** - Track revenues and expenses
-- **Hors-Bilan (Off-Balance Sheet)** - Monitor off-balance sheet items
-
-### 3. Interactive Tables
-- Real-time editing with validation
-- Add/remove line items
-- Multi-period support
-- Automatic calculations
-- Color-coded rows (totals, subtotals, manual entries)
-
-### 4. Company Management
-- Rename companies across all statements
-- Merge data from multiple uploads
-- Company selector dropdown
-- Export to Excel (all statements)
-
-### 5. IRP Report Generation
-- Standardized IRP format for banks and microfinance
-- Balance sheet mapping
-- Income statement mapping
-- CSV export for IRP submission
-- Manual override capabilities
-
-## Architecture
-```
-finspreading-nextjs/
-├── src/
-│   ├── app/                          # Next.js 15 App Router
-│   │   ├── (auth)/                   # Authentication routes
-│   │   │   ├── login/
-│   │   │   └── signup/
-│   │   ├── (dashboard)/              # Protected routes
-│   │   │   ├── actifs/
-│   │   │   ├── passifs/
-│   │   │   ├── compte-resultats/
-│   │   │   ├── hors-bilan/
-│   │   │   ├── rapport-irp/
-│   │   │   ├── dashboard/
-│   │   │   └── upload/
-│   │   └── api/                      # API routes
-│   │       ├── extract-data/         # Claude AI extraction
-│   │       ├── process-excel/        # Excel processing
-│   │       └── statements/           # CRUD operations
-│   ├── components/                   # React components
-│   │   ├── ui/                       # shadcn/ui components
-│   │   ├── statements/               # Statement tables
-│   │   └── irp/                      # IRP report components
-│   ├── lib/                          # Utilities & logic
-│   │   ├── supabase/                 # Supabase clients
-│   │   ├── statements/               # Business logic
-│   │   │   ├── database.ts           # DB operations
-│   │   │   ├── normalize.ts          # Normalization rules
-│   │   │   ├── validate.ts           # Validation
-│   │   │   └── mappings/             # Financial code mappings
-│   │   └── irp/                      # IRP structures
-│   └── types/                        # TypeScript definitions
-├── supabase/
-│   └── migrations/                   # Database migrations
-└── public/                           # Static assets
-```
-
-## Prerequisites
-
-- Node.js 18+ 
-- npm or yarn
-- Supabase account
-- Anthropic API key (Claude)
-
-## Installation
-
-### 1. Clone the repository
 ```bash
-git clone <repository-url>
+git clone <repo-url>
 cd finspreading-nextjs
-```
-
-### 2. Install dependencies
-```bash
 npm install
+cp .env.example .env.local   # see "Environment" below
+npm run dev                  # http://localhost:3000
 ```
 
-### 3. Set up Supabase
-
-Create a new Supabase project at [supabase.com](https://supabase.com)
-
-Run the database migration:
 ```bash
-# Copy migration SQL from supabase/migrations/001_initial_schema.sql
-# Execute in Supabase SQL Editor
+npm test                     # unit tests
+npm run test:coverage        # with coverage
+npx tsc --noEmit             # strict typecheck
+npm run lint                 # ESLint
+npm run build                # production build
 ```
 
-### 4. Configure environment variables
+### Environment
 
-Create `.env.local`:
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# Anthropic
-ANTHROPIC_API_KEY=your_anthropic_api_key
-
-# App
+NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...               # server-only
+ANTHROPIC_API_KEY=sk-ant-...
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-### 5. Set up Supabase Storage
+### Supabase setup
 
-Create storage buckets in Supabase Dashboard:
-- `financial-documents` (public read, authenticated write)
+1. Create a project at [supabase.com](https://supabase.com).
+2. Run the SQL files in `supabase/` against your project (SQL editor or CLI):
+   `camels_analyses.sql`, `camels_overrides.sql`, `period_mappings.sql`.
+   The core `financial_statements` table is currently created out of band — see
+   the schema section below for its expected shape.
+3. Create a public storage bucket called `financial-documents` with
+   authenticated write.
+4. Add the local dev URL and the Vercel preview/prod URLs to **Auth → URL
+   Configuration → Redirect URLs**.
 
-### 6. Run development server
-```bash
-npm run dev
+## Architecture map
+
+```
+src/
+├── app/
+│   ├── (auth)/                   login/, signup/
+│   ├── (dashboard)/              actifs/, passifs/, hors-bilan/,
+│   │                             compte-resultats/, upload/, rapport-irp/,
+│   │                             camels/, export/, dashboard/
+│   └── api/
+│       ├── extract-from-pages/   PDF → 1 Claude call per statement type
+│       ├── extract-data/         (legacy single-shot extractor, kept for Excel paths)
+│       ├── process-excel/        BCEAO Etat 167 .xlsx → statements
+│       ├── statements/           save / list / rename / delete-company / export / irp-report
+│       ├── camels/               analyze / history
+│       └── period-mappings/      cross-source period alignment
+├── components/
+│   ├── ui/                       shadcn primitives
+│   ├── statements/               StatementTable, CodePicker
+│   ├── upload/                   FileUploadZone, PagePickerDialog, ProcessingQueue
+│   ├── irp/                      IRPBalanceSheet, IRPIncomeStatement, IRPSummary
+│   └── camels/                   RatioTable, ScoreCard, CompositeGauge, PeriodAlignmentDialog
+└── lib/
+    ├── normalization/
+    │   ├── normalize.ts          dispatcher (bank vs microfinance)
+    │   ├── banks/                PCB BCEAO normalizers
+    │   ├── microfinance/         SYSCOA-IMF normalizers
+    │   │   ├── catalog.ts        unified picker catalog (200+ entries, both plans)
+    │   │   └── description-map.ts fallback when only descriptions are readable
+    │   └── period-resolver.ts    "exercice N-1" → YYYY-MM-DD using closing date
+    ├── statements/               database.ts (merge logic), validate.ts
+    ├── irp/                      structures.ts, calculator.ts (IRP report generation)
+    └── camels/                   calculator.ts, field-mapper.ts, narrative-generator.ts
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+## Key concepts
 
-## Database Schema
+### Institution types
 
-### Tables
+Every statement is tagged `'banque'` or `'microfinance'`. This choice drives:
 
-**financial_statements**
-- `id` (uuid, primary key)
-- `user_id` (uuid, foreign key to auth.users)
-- `company_name` (text)
-- `type_institution` (enum: 'banque' | 'microfinance')
-- `statement_type` (enum: 'actifs' | 'passifs' | 'compte_resultats' | 'hors_bilan')
-- `periods` (text[], array of ISO date strings)
-- `line_items` (jsonb, array of financial line items)
-- `source_files` (text[], array of file names)
-- `created_at` (timestamp)
-- `updated_at` (timestamp)
+- **Chart of accounts** used by the normalizer (PCB BCEAO for banks,
+  SYSCOA-IMF for microfinance).
+- **Code picker scope** in the UI — the picker filters its catalog by
+  institution so a bank analyst never sees `MFA_*` codes and a microfinance
+  analyst never sees `ACTIF_*`.
+- **IRP structure** used to aggregate line items into the final report.
 
-**LineItem Structure**
-```typescript
+### Code namespaces
+
+| Prefix | Meaning | Where |
+|---|---|---|
+| `MFA_*` | Microfinance Assets (SYSCOA-IMF, A01…E90) | `microfinance/actifs.ts` |
+| `MFP_F/G/H/K/L_*` | Microfinance Liabilities | `microfinance/passifs.ts` |
+| `MFC_*`, `MFP_V/W/X_*` | Microfinance Income Statement (charges / produits) | `microfinance/compte-resultats.ts` |
+| `ACTIF_01..14`, `ACTIF_TOTAL` | Bank Assets (PCB BCEAO) | `banks/actifs.ts` |
+| `PASSIF_01..16`, `PASSIF_TOTAL` | Bank Liabilities | `banks/passifs.ts` |
+| `CR_01..20` | Bank Income Statement | `banks/compte-resultats.ts` |
+
+`MFP_` is shared between Microfinance Passifs (F/G/H/K/L) and Microfinance
+Produits (V/W/X). The `CatalogEntry.section` field disambiguates.
+
+Anything the normalizer can't recognize becomes `MFA_UNDEFINED_<hash>`,
+`PASSIF_UNDEFINED`, etc. — see `isUndefinedPoste()` in `catalog.ts`. The UI
+flags these in red so the analyst picks the right code via the picker.
+
+### Period resolution
+
+BCEAO statements label their comparative columns `"exercice N-1"` and
+`"exercice N"` with the real years only visible in the printed "Date d'arrêté"
+field. Claude reads this date reliably on some pages but not others (the
+checkered-box form OCRs poorly).
+
+`src/lib/normalization/period-resolver.ts` solves this deterministically:
+
+1. Claude is prompted to return `closing_date` (the printed date) and
+   `periods` (the column headers, verbatim — relative labels allowed).
+2. `resolveRelativePeriods()` rewrites `"exercice N-1"` → `<year-1>-12-31`
+   using the closing date, normalizes any absolute date to YYYY-MM-DD, and
+   leaves anything unrecognized untouched with a `hasUnresolved` flag.
+3. `/api/extract-from-pages` runs a **closing-date consensus pass** across the
+   4 statement types of one PDF: if any type read the date, propagate it to
+   the others that came back empty, then re-resolve.
+
+This is what makes multi-PDF merging stable — `"2023-12-31"` from PDF #1
+always equals `"2023-12-31"` from PDF #2, so the union in `mergeStatements()`
+is clean.
+
+### Sign convention (read this before touching `irp/structures.ts`)
+
+Expense and provision lines on BCEAO PDFs are **printed and stored as
+negative numbers** (`CR_02` = −18 768 FCFA, `CR_15` = −6 406 FCFA, etc.).
+Every aggregate in `incomeStatementStructureBank` therefore sums signed
+components — it does **not** subtract. A `sign: '-'` on an already-negative
+expense double-negates and breaks every subtotal.
+
+The microfinance structure (`MFC_*`) has not been validated against a real
+SFD income statement yet — see `HANDOFF.md` for the known-debt list.
+
+## API routes
+
+| Route | Purpose |
+|---|---|
+| `POST /api/extract-from-pages` | Main PDF flow: 1 Claude call per tagged statement type, consensus closing-date resolution, returns `data` + `warnings` + `summary` |
+| `POST /api/process-excel` | BCEAO Etat 167 Excel → statements (single-shot) |
+| `POST /api/extract-data` | Legacy single-shot PDF extraction |
+| `POST /api/statements/save` | Save + merge into existing statement (one row per company × type) |
+| `GET /api/statements/list` | List by user / company / type |
+| `POST /api/statements/rename` | Rename a company across all its statements |
+| `DELETE /api/statements/delete-company` | Drop all rows for a company |
+| `GET /api/statements/export` | Excel export (full IRP report) |
+| `POST /api/statements/irp-report` | Build the IRP data structure server-side |
+| `POST /api/camels/analyze` | Compute CAMELS ratios + scores |
+| `GET /api/camels/history` | Historical scores |
+
+All routes are auth-gated via `requireUser()` — the user id always comes from
+the verified session, never from the request body.
+
+## Database
+
+Core table — created out of band today; capture it in a migration before
+shipping to production:
+
+```sql
+create table financial_statements (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id),
+  company_name text not null,
+  type_institution text not null check (type_institution in ('banque','microfinance')),
+  statement_type text not null check (statement_type in ('actifs','passifs','hors_bilan','compte_resultats')),
+  periods text[] not null,
+  line_items jsonb not null,
+  source_files text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+-- RLS: every row is readable/writable only by its owner
+alter table financial_statements enable row level security;
+create policy "own rows" on financial_statements
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+```
+
+`LineItem` shape (stored as JSONB):
+
+```ts
 {
-  poste: string           // Financial code (e.g., "MFA_A11")
-  description: string     // Line description
-  amounts: number[]       // Values for each period
-  is_subtotal?: boolean   // Subtotal indicator
-  is_total?: boolean      // Total indicator
-  indent_level?: number   // Indentation level
-  manual?: boolean        // Manually added
-  flags?: string[]        // Validation flags
+  poste: string,           // Normalized code e.g. "MFA_A10", "ACTIF_04"
+  description: string,     // Raw label as extracted
+  amounts: number[],       // One value per period, same order as `periods`
+  is_subtotal?: boolean,
+  is_total?: boolean,
+  indent_level?: number,
+  manual?: boolean,        // Added by the analyst in the editor
+  flags?: string[]         // e.g. ['unmapped']
 }
 ```
 
-## API Routes
+The supporting tables (`camels_analyses`, `camels_overrides`,
+`period_mappings`) have their own SQL files in `supabase/`.
 
-### POST /api/extract-data
-Extract financial data from PDF using Claude AI
+## Upload flow (PDF)
 
-**Request:**
-```typescript
-{
-  file_url: string
-  institution_type: 'banque' | 'microfinance'
-}
+```
+analyst drops PDF
+   ↓
+upload to Supabase Storage (slugified key — accents/spaces would be rejected)
+   ↓
+PagePickerDialog renders page thumbnails with react-pdf
+   ↓
+analyst tags each page with 1+ statement types (multi-tag because BCEAO
+bilans show Actif + Passif side-by-side on the same page)
+   ↓
+POST /api/extract-from-pages with { file_url, institution_type, selections }
+   ↓
+pdf-lib splits the source PDF into one sub-PDF per statement type
+   ↓
+Promise.allSettled — 4 parallel Claude calls (one per type)
+   ↓
+period-resolver applies closing-date consensus across types
+   ↓
+response: { data, warnings, summary }
+   ↓
+upload page loops through statements, calls /api/statements/save for each
+   ↓
+saveFinancialStatement either creates a new row or merges into the existing
+one for that (company, type), unioning periods
+   ↓
+verification card with a per-type recap (lines · periods · source pages)
 ```
 
-### POST /api/process-excel
-Process Excel financial statements
-
-**Request:**
-```typescript
-{
-  file_url: string
-  institution_type: 'banque' | 'microfinance'
-}
-```
-
-### POST /api/statements/save
-Save processed financial statement
-
-### GET /api/statements/list
-List user's financial statements
-
-**Query params:**
-- `user_id` (required)
-- `company_name` (optional)
-- `statement_type` (optional)
-
-### POST /api/statements/rename
-Rename a company across all statements
-
-### POST /api/statements/export
-Export company statements to Excel
-
-### POST /api/statements/irp-export
-Generate IRP-compliant CSV report
+Partial failures are surfaced — the green "data imported" card is no longer
+shown when any extraction or save failed. A period-asymmetry heuristic also
+warns when Actifs and Passifs of the same PDF come back with a different
+number of periods.
 
 ## Deployment (Vercel)
 
-### 1. Push to GitHub
-```bash
-git add .
-git commit -m "Ready for deployment"
-git push origin main
-```
-
-### 2. Import to Vercel
-
-1. Go to [vercel.com](https://vercel.com)
-2. Click "Add New Project"
-3. Import your GitHub repository
-4. Configure environment variables (same as `.env.local`)
-5. Deploy
-
-### 3. Configure Supabase
-
-Update Supabase project settings:
-- Add Vercel domain to "Allowed Redirect URLs"
-- Add Vercel domain to "Site URL"
-
-### 4. Update Environment
-
-In `.env.local` and Vercel:
-```env
-NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
-```
-
-## Development
-
-### Code Style
-```bash
-npm run lint        # Run ESLint
-npm run build       # Production build
-npm run type-check  # TypeScript check
-```
-
-### Key Conventions
-
-- Use `async/await` for all async operations
-- Handle errors with try-catch blocks
-- Log important operations with emojis for visibility
-- Use TypeScript strict mode
-- Follow Next.js 15 App Router patterns
-
-### Adding a New Statement Type
-
-1. Add to database enum in `supabase/migrations/`
-2. Create mapping in `src/lib/statements/mappings/`
-3. Add normalization rules in `src/lib/statements/normalize.ts`
-4. Create page in `src/app/(dashboard)/`
-5. Update IRP structures if needed
-
-## Normalization Rules
-
-The application uses sophisticated normalization rules to standardize financial data:
-
-### Banks (Banque)
-- Uses BCEAO/OHADA chart of accounts
-- Codes: `ACTIF_XX`, `PASSIF_XX`, `CR_XX`
-- Automatic mapping to IRP structure
-
-### Microfinance (Microfinance)
-- Uses MIX Market taxonomy
-- Codes: `MFA_XXX` (assets), `MFP_XXX` (liabilities), `MFC_XXX` (income statement)
-- Handles special microfinance categories
-
-## Troubleshooting
-
-### Build Errors
-
-**TypeScript errors with Supabase client:**
-```typescript
-// Use type assertion
-const supabase = createClient() as any
-```
-
-**Missing environment variables:**
-Check `.env.local` and ensure all required variables are set
-
-### Runtime Issues
-
-**502 errors during upload:**
-- Check file size (max 50MB)
-- Verify Anthropic API key
-- Check Supabase Storage bucket permissions
-
-**RLS policy errors:**
-- Ensure user is authenticated
-- Check RLS policies in Supabase Dashboard
-
-## Performance Considerations
-
-- File uploads: ~5-10 seconds for PDF processing
-- Excel processing: < 2 seconds
-- Statement merging: < 1 second
-- Database queries: < 100ms with proper indexing
-
-## Security
-
-- Row Level Security (RLS) enabled on all tables
-- User isolation via `user_id` foreign key
-- File uploads require authentication
-- Service role key only used server-side
-- CORS configured for production domain
-
-## Coûts et Infrastructure
-
-### Architecture de l'Application
-
-**Important:** Les analystes IFC n'ont **AUCUN** besoin de compte Vercel. Ils se connectent directement via l'application web avec leur email/mot de passe (Supabase Auth).
-
-- **Vercel:** Hébergement de l'application (pour développeurs uniquement)
-- **Supabase:** Base de données, authentification, stockage (pour tous les analystes)
-- **Anthropic Claude:** Intelligence artificielle pour extraction de documents
-
----
-
-### Coûts Actuels (Configuration Gratuite)
-
-L'application fonctionne actuellement avec les plans gratuits:
-
-#### Vercel (Hébergement)
-- **Plan actuel:** Hobby (Gratuit)
-- **Inclus:**
-  - 100 GB bandwidth/mois
-  - Déploiements illimités
-  - HTTPS automatique
-  - Utilisateurs illimités dans l'app
-- **Limitations:**
-  - 1 développeur seulement
-  - Support communautaire
-- **Coût:** $0/mois
-
-#### Supabase (Backend)
-- **Plan actuel:** Free Tier
-- **Inclus:**
-  - 500 MB base de données
-  - 1 GB stockage fichiers
-  - 50,000 utilisateurs actifs/mois
-  - 2 GB bandwidth
-  - Authentication illimitée
-- **Limitations:**
-  - Pause après 1 semaine d'inactivité
-  - Pas de backups automatiques
-- **Coût:** $0/mois
-
-#### Anthropic Claude API
-- **Pay-as-you-go**
-- **Coût par document PDF:**
-  - Claude Sonnet: ~$0.015 (précis)
-  - Claude Haiku: ~$0.004 (rapide, moins cher)
-- **Estimation:**
-  - 10 docs/mois: $0.15
-  - 50 docs/mois: $0.75
-  - 100 docs/mois: $1.50
-- **Coût:** $0-2/mois
-
-**COÛT TOTAL PHASE TEST: $0-2/mois** ✅
-
----
-
-### Plans Professionnels (Production)
-
-#### Vercel Pro
-- **Coût:** $20/mois par développeur
-- **Nécessaire si:**
-  - Besoin de plusieurs développeurs
-  - Analytics détaillés requis
-  - Support technique prioritaire
-- **Note:** Les analystes n'ont PAS besoin de compte Vercel
-
-#### Supabase Pro
-- **Coût:** $25/mois (équipe illimitée)
-- **Inclus:**
-  - 8 GB base de données
-  - 100 GB stockage
-  - 250,000 utilisateurs actifs/mois
-  - 250 GB bandwidth
-  - **Pas de pause automatique**
-  - Backups quotidiens (7 jours)
-  - Support email
-  - 99.9% SLA
-- **Recommandé:** Dès la mise en production
-
-#### Supabase Team
-- **Coût:** $599/mois
-- **Pour:** Organisations avec >20 analystes actifs
-- **Inclus:**
-  - Tout du plan Pro
-  - Point-in-time recovery (2 semaines)
-  - Support prioritaire
-  - Read replicas
-  - Plus de ressources
-
----
-
-### Estimation par Scénario d'Usage
-
-#### Scénario 1: Pilote (2-5 analystes, 30-50 documents/mois)
-| Service | Plan | Coût/mois | Notes |
-|---------|------|-----------|-------|
-| Vercel | Hobby | $0 | 1 développeur suffit |
-| Supabase | Free → Pro | $0 → $25 | Pro recommandé après test |
-| Anthropic | Usage | $3-5 | ~50 documents |
-| **TOTAL** | | **$3-30/mois** | Selon phase |
-
-**Recommandation:** Commencer gratuit, passer à Supabase Pro après validation.
-
----
-
-#### Scénario 2: Production (5-15 analystes, 100-300 documents/mois)
-| Service | Plan | Coût/mois | Notes |
-|---------|------|-----------|-------|
-| Vercel | Pro | $20 | Support + analytics |
-| Supabase | Pro | $25 | 250k MAU suffisant |
-| Anthropic | Usage | $10-20 | 100-300 documents |
-| **TOTAL** | | **$55-65/mois** | |
-
-**Utilisateurs supportés:** Jusqu'à 15 analystes actifs quotidiennement
-
----
-
-#### Scénario 3: Déploiement Complet (20+ analystes, 500+ documents/mois)
-| Service | Plan | Coût/mois | Notes |
-|---------|------|-----------|-------|
-| Vercel | Pro | $20-40 | 1-2 développeurs |
-| Supabase | Team | $599 | Plus de capacité |
-| Anthropic | Usage | $30-50 | 500+ documents |
-| **TOTAL** | | **$650-690/mois** | |
-
-**Utilisateurs supportés:** 50+ analystes simultanés
-
----
-
-### Optimisations des Coûts
-
-#### 1. Anthropic Claude API
-**Stratégies:**
-- Utiliser **Claude Haiku** pour documents simples (-75% coût)
-- Implémenter un **cache** pour documents similaires
-- Batch processing pour grands volumes
-
-**Économies:** $5-15/mois selon volume
-
-#### 2. Supabase Storage
-**Stratégies:**
-- Compression automatique des PDFs
-- Suppression des fichiers après traitement
-- Archivage dans S3 après 30 jours
-
-**Économies:** Reste dans le plan Pro même à fort volume
-
-#### 3. Vercel Bandwidth
-**Stratégies:**
-- Optimisation des images
-- Minification du JavaScript
-- Edge caching
-
-**Économies:** Reste dans plan Pro sans surcoût
-
----
-
-### Roadmap des Coûts
-
-#### Mois 1-2: Phase Pilote
-- ✅ Free tier partout
-- ✅ 2-3 analystes testeurs
-- ✅ Validation fonctionnelle
-- **Budget:** $0-5/mois
-
-#### Mois 3-6: Production Initiale
-- ✅ Supabase Pro: $25/mois
-- ✅ Vercel Hobby: $0/mois (suffit)
-- ✅ 5-10 analystes
-- **Budget:** $30-50/mois
-
-#### Mois 6-12: Scaling
-- ✅ Vercel Pro: $20/mois (si besoin support)
-- ✅ Supabase Pro: $25/mois
-- ✅ 10-20 analystes
-- **Budget:** $50-70/mois
-
-#### Mois 12+: Déploiement Complet
-- ✅ Évaluer Supabase Team si >20 analystes
-- ✅ Négocier contrat annuel Anthropic (-20%)
-- **Budget:** $600-700/mois (si >30 analystes)
-
----
-
-### Questions Fréquentes
-
-#### Q: Combien d'analystes peuvent utiliser l'app?
-**R:** Avec Supabase Pro ($25/mois), jusqu'à 250,000 utilisateurs actifs/mois. Pour l'IFC, cela signifie facilement 50-100 analystes actifs quotidiennement.
-
-#### Q: Les analystes ont besoin d'un compte Vercel?
-**R:** **NON.** Seuls les développeurs ont besoin de Vercel. Les analystes se connectent via l'application web directement.
-
-#### Q: Peut-on commencer gratuitement?
-**R:** **OUI.** Tous les services ont un plan gratuit pour tester. Vous ne payez que quand vous passez en production.
-
-#### Q: Qu'arrive-t-il si on dépasse les limites du plan gratuit?
-**R:** L'application continue de fonctionner mais avec des limitations (pause après inactivité, moins de stockage). Mise à niveau recommandée avant d'atteindre les limites.
-
-#### Q: Peut-on migrer vers un self-hosting plus tard?
-**R:** **OUI.** Le code est open-source et peut être déployé sur n'importe quelle infrastructure (AWS, Azure, Google Cloud) si les coûts cloud deviennent trop élevés.
-
----
-
-### Recommandation Finale IFC
-
-**Phase de Test (maintenant):**
-- Utiliser les plans gratuits
-- Budget: $0-5/mois
-- Durée: 1-2 mois
-
-**Mise en Production:**
-- Supabase Pro: $25/mois (essentiel)
-- Vercel Hobby: $0/mois (suffisant)
-- Budget: $30-50/mois
-- Pour: 5-15 analystes
-
-**Total investi première année:** ~$400-600
-**Économie vs Base44:** ~$XXX (à calculer avec coût Base44)
-**Gains productivité:** Inestimables
-
----
-
-### Contact & Négociations Entreprise
-
-Pour des remises ONG/Organisations Internationales:
-
-**Supabase:**
-- Email: sales@supabase.io
-- Mentionner: IFC (World Bank Group)
-- Possibles: -10 à -20% sur plans annuels
-
-**Anthropic:**
-- Email: sales@anthropic.com
-- Mentionner: Development finance use case
-- Possibles: Volume discounts si >1000 docs/mois
-
-**Vercel:**
-- Email: sales@vercel.com
-- Généralement pas de remises pour plans Pro
+1. Push the branch to GitHub.
+2. Import the repo in Vercel.
+3. Set every env var from the **Environment** section above on the **Preview**
+   and **Production** environments (it's a common pitfall to set them only on
+   Production and get cryptic "Failed to fetch" errors on previews).
+4. Add the Vercel preview/prod URLs to Supabase Auth redirect URLs.
+5. Deploy.
+
+The Supabase Free tier pauses the project after 7 days of inactivity, which
+makes every auth call fail with "Failed to fetch" until you click "Restore"
+in the dashboard. Move to Supabase Pro ($25/mo) before piloting with real
+users.
+
+## Costs
+
+Today, running on free tiers:
+
+| Service | Plan | Cost |
+|---|---|---|
+| Vercel | Hobby | $0 |
+| Supabase | Free | $0 (pauses after 7d idle) |
+| Anthropic | pay-as-you-go | ~€0.40 per uploaded PDF (4 Claude calls per PDF, Sonnet 4) |
+
+Realistic pilot budget (50 docs/mo, 5 analysts): **~€20-25/mo**, dominated by
+Supabase Pro ($25) once activated. Anthropic stays under €25/mo until ~50
+docs/day.
+
+## Contributing & next steps
+
+- See [HANDOFF.md](./HANDOFF.md) for the punch list aimed at the AI &
+  Innovation team picking this up.
+- Open an issue or PR against `main`.
+- Tests must stay green (`npm test`) and `tsc --noEmit` must be clean before
+  merging.
 
 ## License
 
-Proprietary - IFC (International Finance Corporation)
-
-## Support
-
-For issues or questions, contact the development team or create an issue in the repository.
-
----
-
-**Built with ❤️ for IFC analysts**
+Proprietary — IFC (International Finance Corporation).
