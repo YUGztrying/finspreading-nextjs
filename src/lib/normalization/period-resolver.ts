@@ -3,7 +3,7 @@
 // YYYY-MM-DD dates using the statement's closing date.
 //
 // Why this exists:
-//   BCEAO / SYSCOA-IMF balance sheets often label comparative columns as
+//   BCEAO bank and SFD balance sheets often label comparative columns as
 //   "exercice N-1 / exercice N" rather than explicit years. Asking Claude to
 //   deduce the absolute year from the printed "Date d'arrêté" field worked
 //   non-deterministically — sometimes it resolved to "2023-12-31", other

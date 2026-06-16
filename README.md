@@ -1,7 +1,7 @@
 # FinSpreading
 
 A web app that turns West-African bank and microfinance financial statements
-(PDFs from BCEAO/SYSCOA-IMF auditors, BCEAO Excel reporting forms) into
+(PDFs from BCEAO bank and SFD (microfinance) auditors, BCEAO Excel reporting forms) into
 standardized data that feeds IRP reports and CAMELS analyses for IFC analysts.
 
 The goal is to remove the manual re-keying that traditionally costs an analyst
@@ -84,7 +84,7 @@ src/
     ├── normalization/
     │   ├── normalize.ts          dispatcher (bank vs microfinance)
     │   ├── banks/                PCB BCEAO normalizers
-    │   ├── microfinance/         SYSCOA-IMF normalizers
+    │   ├── microfinance/         Référentiel SFD BCEAO normalizers
     │   │   ├── catalog.ts        unified picker catalog (200+ entries, both plans)
     │   │   └── description-map.ts fallback when only descriptions are readable
     │   └── period-resolver.ts    "exercice N-1" → YYYY-MM-DD using closing date
@@ -100,7 +100,7 @@ src/
 Every statement is tagged `'banque'` or `'microfinance'`. This choice drives:
 
 - **Chart of accounts** used by the normalizer (PCB BCEAO for banks,
-  SYSCOA-IMF for microfinance).
+  Référentiel SFD BCEAO for microfinance).
 - **Code picker scope** in the UI — the picker filters its catalog by
   institution so a bank analyst never sees `MFA_*` codes and a microfinance
   analyst never sees `ACTIF_*`.
@@ -110,7 +110,7 @@ Every statement is tagged `'banque'` or `'microfinance'`. This choice drives:
 
 | Prefix | Meaning | Where |
 |---|---|---|
-| `MFA_*` | Microfinance Assets (SYSCOA-IMF, A01…E90) | `microfinance/actifs.ts` |
+| `MFA_*` | Microfinance Assets (Référentiel SFD BCEAO, A01…E90) | `microfinance/actifs.ts` |
 | `MFP_F/G/H/K/L_*` | Microfinance Liabilities | `microfinance/passifs.ts` |
 | `MFC_*`, `MFP_V/W/X_*` | Microfinance Income Statement (charges / produits) | `microfinance/compte-resultats.ts` |
 | `ACTIF_01..14`, `ACTIF_TOTAL` | Bank Assets (PCB BCEAO) | `banks/actifs.ts` |

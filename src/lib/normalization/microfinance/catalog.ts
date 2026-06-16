@@ -1,6 +1,7 @@
 // src/lib/normalization/microfinance/catalog.ts
 // Single source of truth for the financial-statement code picker UI — both
-// microfinance (SYSCOA-IMF) and bank (PCB BCEAO) plans.
+// microfinance (Référentiel SFD BCEAO, Instruction n° 025-02-2009) and bank
+// (PCB BCEAO) plans.
 //
 // Each entry maps a normalized full key (MFA_A10 / MFP_F1A / MFC_R08 / ACTIF_01 /
 // PASSIF_03 / CR_10 …) to its canonical French label, the statement section it
@@ -10,6 +11,17 @@
 // Note on the MFP_ prefix collision: it is used both for microfinance Passifs
 // (F/G/H/K/L codes) and microfinance Produits (V/W/X/Z codes). The `section`
 // field disambiguates.
+//
+// SYNTHETIC Z* CODES — the entries Z01/Z02/Z03 (under ACTIFS) and Z21..Z37
+// (under COMPTE DE RESULTATS) are NOT part of the official BCEAO referential.
+// They are internal codes we coined to represent:
+//   - balance-sheet sub-totals that the referential prints as labels without
+//     codes (e.g. "Prêts immobilisés", "Crédits immobilisés", immos acquises
+//     par garantie);
+//   - the soldes intermédiaires de gestion ("Marge d'intérêt bénéficiaire",
+//     "Total charges d'intérêts", "Produits financiers nets" …) that the
+//     referential lists as unnumbered lines in the CR template.
+// Never present Z* codes as official BCEAO postes in the UI.
 
 export type CatalogSection = 'actif' | 'passif' | 'hors_bilan' | 'compte_resultats'
 export type InstitutionType = 'banque' | 'microfinance'
@@ -66,6 +78,10 @@ const ACTIFS: Array<[string, string]> = [
   ['A10', 'Valeurs en caisse'],
   ['A11', 'Billets et monnaies'],
   ['A12', 'Comptes ordinaires débiteurs'],
+  ['A16', 'Centre des Chèques postaux'],
+  ['A17', 'Banques et correspondants'],
+  ['A20', 'Systèmes Financiers Décentralisés'],
+  ['A21', 'Autres institutions financières'],
   ['A2A', 'Autres comptes de dépôts débiteurs'],
   ['A2H', 'Dépôts à terme constitués'],
   ['A2I', 'Dépôts de garantie constitués'],
@@ -106,6 +122,7 @@ const ACTIFS: Array<[string, string]> = [
   ['C56', 'Valeurs à l\'encaissement avec crédit immédiat'],
   ['C59', 'Valeurs à rejeter'],
   ['C6A', 'Comptes d\'ordre et divers'],
+  ['C6N', 'Comptes transitoires et d\'attente actif'],
   ['C6B', 'Comptes de liaison'],
   ['C6C', 'Comptes de différence de conversion'],
   ['C6G', 'Comptes de régularisation actif'],
@@ -308,7 +325,7 @@ function buildCompteResultats(): CatalogEntry[] {
 // ─── BANK PCB BCEAO ──────────────────────────────────────────────────────────
 // Source: src/lib/normalization/banks/{actifs,passifs,compte-resultats}.ts —
 // labels reconstructed from inline comments / keyword maps in those files plus
-// the published PCB BCEAO chart. Codes are simpler than SYSCOA-IMF: actifs run
+// the published PCB BCEAO chart. Codes are simpler than the SFD referential: actifs run
 // 01→14, passifs 01→16, CR 01→20. Each section is split into a few logical
 // groups so the picker stays scannable.
 
@@ -573,6 +590,6 @@ export function isUndefinedPoste(poste: string | null | undefined): boolean {
 export function chartLabel(institutionType?: InstitutionType | string): string {
   const normInst = normalizeInstitution(institutionType)
   if (normInst === 'banque') return 'PCB BCEAO'
-  if (normInst === 'microfinance') return 'SYSCOA-IMF'
+  if (normInst === 'microfinance') return 'Référentiel SFD BCEAO'
   return 'comptable'
 }

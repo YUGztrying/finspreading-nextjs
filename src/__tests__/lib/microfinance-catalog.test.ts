@@ -10,8 +10,8 @@ import {
 } from '@/lib/normalization/microfinance/catalog'
 
 describe('catalog', () => {
-  // ─── MF (SYSCOA-IMF) ───────────────────────────────────────────────────────
-  describe('MF_CATALOG (SYSCOA-IMF, microfinance)', () => {
+  // ─── MF (Référentiel SFD BCEAO) ────────────────────────────────────────────
+  describe('MF_CATALOG (Référentiel SFD BCEAO, microfinance)', () => {
     it('contains entries for actif / passif / compte_resultats', () => {
       const sections = new Set(MF_CATALOG.map((e) => e.section))
       expect(sections.has('actif')).toBe(true)
@@ -229,7 +229,7 @@ describe('catalog', () => {
   // ─── CHART LABEL ───────────────────────────────────────────────────────────
   describe('chartLabel', () => {
     it('returns plan label per institution', () => {
-      expect(chartLabel('microfinance')).toBe('SYSCOA-IMF')
+      expect(chartLabel('microfinance')).toBe('Référentiel SFD BCEAO')
       expect(chartLabel('banque')).toBe('PCB BCEAO')
     })
 

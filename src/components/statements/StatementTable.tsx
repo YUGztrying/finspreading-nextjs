@@ -17,7 +17,7 @@ interface StatementTableProps {
   readOnly?: boolean
   // optional: pass the statement type so we can adapt layout for compte_resultats
   statementType?: 'actifs' | 'passifs' | 'hors_bilan' | 'compte_resultats' | string
-  // optional: drives picker scope (bank PCB BCEAO vs microfinance SYSCOA-IMF)
+  // optional: drives picker scope (bank PCB BCEAO vs microfinance Référentiel SFD BCEAO)
   institutionType?: InstitutionType | string
 }
 

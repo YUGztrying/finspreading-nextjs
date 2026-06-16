@@ -1,7 +1,7 @@
 /**
  * Tests for the microfinance description-based normalization fallback.
  *
- * The fallback exists for SYSCOA-IMF published reports (the "États Financiers
+ * The fallback exists for SFD published reports (the "États Financiers
  * Consolidés" booklets) where Claude's OCR returns numerical poste positions
  * "1", "2", "3", … instead of the BCEAO codes (A01, A10, B2D, …). Without
  * this layer those rows end up as MFA_UNDEFINED_<hash> and refuse to merge
@@ -114,8 +114,8 @@ describe('normalizeActifKeyMicro (with description fallback)', () => {
     expect(normalizeActifKeyMicro('B2D', 'Crédits à court terme')).toBe('MFA_B2D')
   })
 
-  it('falls back to description when poste is a SYSCOA-IMF positional number', () => {
-    // SYSCOA-IMF published reports number postes 1, 2, 3… — those don't
+  it('falls back to description when poste is a BCEAO SFD positional number', () => {
+    // BCEAO SFD published reports number postes 1, 2, 3… — those don't
     // exist in the BCEAO code map and previously fell straight into UNDEFINED.
     expect(normalizeActifKeyMicro('1', 'Valeur en caisse')).toBe('MFA_A10')
     expect(normalizeActifKeyMicro('2', 'Billets et monnaies')).toBe('MFA_A11')
@@ -142,7 +142,7 @@ describe('normalizeActifKeyMicro (with description fallback)', () => {
   it('preserves the TOTAL ACTIF special case (description-based, was already there)', () => {
     expect(normalizeActifKeyMicro('', 'TOTAL ACTIF')).toBe('MFA_TOTAL_ACTIF')
     expect(normalizeActifKeyMicro('E90', '')).toBe('MFA_TOTAL_ACTIF')
-    // Positional poste from SYSCOA-IMF + canonical description
+    // Positional poste from BCEAO SFD + canonical description
     expect(normalizeActifKeyMicro('45', 'Total actif')).toBe('MFA_TOTAL_ACTIF')
   })
 })

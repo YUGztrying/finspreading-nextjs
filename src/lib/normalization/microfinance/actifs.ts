@@ -15,6 +15,10 @@ const MF_ASSET_MAP: Record<string, string> = {
   A10: 'MFA_A10', // Valeur en caisse
   A11: 'MFA_A11', // Billets et monnaies
   A12: 'MFA_A12', // Comptes ordinaires débiteurs
+  A16: 'MFA_A16', // Centre des Chèques postaux (détail de A12)
+  A17: 'MFA_A17', // Banques et correspondants (détail de A12)
+  A20: 'MFA_A20', // Systèmes Financiers Décentralisés (détail de A12)
+  A21: 'MFA_A21', // Autres institutions financières (détail de A12)
   A2A: 'MFA_A2A', // Autres comptes de dépôts débiteurs
   A2H: 'MFA_A2H', // Dépôts à terme constitués
   A2I: 'MFA_A2I', // Dépôts de garantie constitués
@@ -55,6 +59,7 @@ const MF_ASSET_MAP: Record<string, string> = {
   C56: 'MFA_C56', // Valeur à l'encaissement avec crédit immédiat
   C59: 'MFA_C59', // Valeur à rejeter
   C6A: 'MFA_C6A', // Comptes d'ordre et divers
+  C6N: 'MFA_C6N', // Comptes transitoires et d'attente actif (378 + 3791)
   C6B: 'MFA_C6B', // Comptes de liaison
   C6C: 'MFA_C6C', // Comptes de différence de conversion
   C6G: 'MFA_C6G', // Comptes de régularisation actif
@@ -140,7 +145,7 @@ export function normalizeActifKeyMicro(
     return MF_ASSET_MAP[posteStr]
   }
 
-  // 🔹 Description-based fallback: SYSCOA-IMF published reports number postes
+  // 🔹 Description-based fallback: SFD published reports number postes
   // 1, 2, 3, … with no alphanumeric code, so the exact-code lookup above misses
   // even when the line is a perfectly valid BCEAO poste. Try matching the
   // canonical description before giving up.

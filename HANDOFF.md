@@ -25,7 +25,7 @@ decisions.
   of periods, lines preserved across years.
 - **Code picker** — the editable Code column is a searchable dialog rendering
   the canonical chart of accounts, filtered by institution type. Replaces a
-  free-text input that required analysts to memorize the SYSCOA-IMF /
+  free-text input that required analysts to memorize the Référentiel SFD BCEAO /
   PCB BCEAO codes.
 - **IRP export (bank income statement)** — signed-component aggregation pins
   every subtotal to the published Compte de Résultat (tested against a real
@@ -34,6 +34,44 @@ decisions.
   Not the focus of recent work; treat as second-tier when planning fixes.
 - **Tests** — 215 unit tests covering normalization, period resolution, IRP
   calculation, and API contracts. Keep them green.
+
+## Conformity with the BCEAO referentials
+
+The microfinance catalog (`src/lib/normalization/microfinance/`) was audited
+against the official **Référentiel comptable spécifique des SFD de l'UMOA**
+(BCEAO, Instruction n° 025-02-2009, version allégée — Annexes 1 to 5).
+
+**Confirmed aligned.**
+- 100% of postes printed in the allégée Bilan (Annexe 2, DIMF 2000) and
+  Compte de Résultat (Annexe 3, DIMF 2080) are present in our catalog.
+- Annexe 1 ("Nomenclature des codes postes et concordance avec le plan de
+  comptes") matches our MFA_/MFP_/MFC_ structure class-by-class (classes 1-7).
+- Our catalog is a **superset** that also targets the version normale: codes
+  like `D10..D73`, `R1B..R6X`, `V5x`, `V6x` are not present in the allégée
+  templates but appear in the underlying nomenclature.
+
+**Known gap — version normale not audited.** The BCEAO publishes a separate
+"version normale" document with more granular postes than the allégée. Our
+granular codes are *consistent* with what the nomenclature implies, but the
+official version normale templates have not been line-checked.
+
+**Hors-Bilan microfinance has no regulatory basis.** The allégée referential
+stops at class 7; Annexe 4 ("États annexes", DIMF 2005-2014) contains no
+off-balance-sheet engagement statement for SFDs. The `hors_bilan` path
+exists in code for bank statements (PCB BCEAO) but should be considered
+out-of-scope for microfinance until the version normale is reviewed or the
+team gets a real off-balance-sheet annex to model against.
+
+**Synthetic Z* codes.** The codes `Z01/Z02/Z03` (under MFA_*) and
+`Z21..Z37` (under MFC_*/MFP_*) are **NOT** part of the BCEAO referential.
+They are internal codes we coined for sub-totals that the referential prints
+as unnumbered labels (`Prêts immobilisés`, soldes intermédiaires de gestion,
+etc.). Never present them as official BCEAO postes in the UI.
+
+**On naming.** "SYSCOA" is the OHADA accounting system for non-financial
+companies — it has nothing to do with SFDs. Earlier comments calling the
+SFD plan "SYSCOA-IMF" were renamed to **Référentiel SFD BCEAO** (or the
+full name, *Référentiel comptable spécifique des SFD de l'UMOA*).
 
 ## Known technical debt — prioritized
 
@@ -52,7 +90,7 @@ already-signed expense — but it must be validated against a real SFD PDF befor
 shipping. Add a regression test mirroring
 `src/__tests__/lib/irp-income-statement-bank.test.ts`.
 
-If you have access to a published SYSCOA-IMF compte de résultat (UM-PAMECAS,
+If you have access to a published SFD compte de résultat (UM-PAMECAS,
 ACEP, etc.), the verification takes ~30 min: extract the file, export IRP,
 compare every subtotal against the printed PNB / résultat net.
 
@@ -107,7 +145,7 @@ entries for the standard PCB BCEAO off-balance-sheet codes
 ### P2 — passifs labels validation (0.5 day)
 
 The microfinance passif labels in `microfinance/catalog.ts` (entries
-`F2A`, `F60`, `G70`…) were reconstructed from the SYSCOA-IMF standard, not
+`F2A`, `F60`, `G70`…) were reconstructed from the Référentiel SFD BCEAO standard, not
 from `description-map.ts`, because the latter intentionally omits ambiguous
 descriptions. Spot-check against a real SFD passif page; the rare labels may
 need wording adjustments.

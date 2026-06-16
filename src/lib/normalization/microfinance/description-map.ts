@@ -1,10 +1,10 @@
 // src/lib/normalization/microfinance/description-map.ts
-// Description-to-code fallback for microfinance SYSCOA-IMF balance sheet lines.
+// Description-to-code fallback for microfinance SFD (BCEAO referential) balance sheet lines.
 //
 // Why this exists:
 //   The microfinance BCEAO "Etat 167" Excel uses standard codes (A01, A10,
 //   B2D, F1A, L01, …) that we already map exactly via the code dictionaries
-//   in actifs.ts / passifs.ts. But the *published* SYSCOA-IMF annual report
+//   in actifs.ts / passifs.ts. But the *published* SFD annual report
 //   PDFs (the "États Financiers Consolidés" booklets) number postes 1, 2, 3,
 //   … with no alphanumeric codes — so Claude's OCR returns no usable poste
 //   and every line falls into MFA_UNDEFINED_<hash>, which prevents merging
@@ -12,7 +12,7 @@
 //   a merge.
 //
 // What this does:
-//   For every code with an UNAMBIGUOUS canonical SYSCOA-IMF description, we
+//   For every code with an UNAMBIGUOUS canonical BCEAO SFD description, we
 //   add a reverse lookup. After the exact-code match fails, the normalizer
 //   tries a normalized-description match against this table. Ambiguous
 //   wordings ("Créances rattachées", "Incorporelles", "Corporelles" — they
@@ -39,7 +39,7 @@ export function normalizeDescription(s: string | null | undefined): string {
 // Values are the raw poste codes — the normalizer prepends MFA_ itself.
 export const MF_ACTIF_DESC_TO_CODE: Record<string, string> = {
   // Section headers — multiple wordings are seen in the wild:
-  //   - SYSCOA-IMF microfinance plan: "...INSTITUTIONS FINANCIERES" / "...OU CLIENTS"
+  //   - SFD BCEAO referential: "...INSTITUTIONS FINANCIERES" / "...OU CLIENTS"
   //   - PCB BCEAO bank plan reused by some auditors on micro reports:
   //     "...ETABLISSEMENTS DE CREDIT" / "...ET LA CLIENTELE"
   //   - Short forms occasionally appear standalone
@@ -147,7 +147,7 @@ export const MF_ACTIF_DESC_TO_CODE: Record<string, string> = {
 // fallback to avoid wrong matches. Only descriptions that are unique across
 // the entire passif side are included.
 export const MF_PASSIF_DESC_TO_CODE: Record<string, string> = {
-  // Section headers — same multi-wording as actifs (PCB vs SYSCOA-IMF).
+  // Section headers — same multi-wording as actifs (PCB BCEAO vs SFD BCEAO).
   'operations de tresorerie et avec les institutions financieres': 'F01',
   'operations de tresorerie avec les institutions financieres': 'F01',
   'operations de tresorerie et avec les etablissements de credit': 'F01',
