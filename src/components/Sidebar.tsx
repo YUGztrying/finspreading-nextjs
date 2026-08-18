@@ -14,6 +14,8 @@ import {
   Download,
   Building2,
   Shield,
+  Globe,
+  LineChart,
 } from 'lucide-react'
 
 interface NavItem {
@@ -48,6 +50,8 @@ const navGroups: NavGroup[] = [
     items: [
       { title: 'Rapport IRP', href: '/rapport-irp', icon: FileText },
       { title: 'Analyse CAMELS', href: '/camels', icon: Shield },
+      { title: 'Taux de Change', href: '/fx-rates', icon: Globe },
+      { title: 'Analyse IRM', href: '/analyse-irm', icon: LineChart },
       { title: 'Export Complet', href: '/export', icon: Download },
     ],
   },
